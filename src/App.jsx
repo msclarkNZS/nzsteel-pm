@@ -672,7 +672,7 @@ const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { font-size: 16px; }
   body { font-family: 'Roboto', sans-serif; background: var(--bg-app); color: var(--text-primary); min-height: 100vh; -webkit-text-size-adjust: 100%; transition: background 0.25s, color 0.25s; }
-  .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; padding-top: env(safe-area-inset-top, 0px); background: var(--bg-header); }
 
   /* ── Header ── */
   .hdr { background: var(--bg-header); padding: 0 20px; display: flex; align-items: stretch; justify-content: space-between; gap: 14px; flex-shrink: 0; box-shadow: 0 2px 16px var(--shadow); }
@@ -844,7 +844,7 @@ const css = `
   .empty-state { padding: 60px 24px; text-align: center; color: var(--border); font-family: 'Roboto Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
 
   /* ── Export bar ── */
-  .export-bar { background: var(--bg-bar); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+  .export-bar { background: var(--bg-bar); border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
   .exp-lbl { font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text-faint); }
   .btn-exp { font-family: 'Roboto Condensed', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; padding: 10px 16px; border-radius: 4px; border: none; cursor: pointer; transition: all 0.15s; min-height: 44px; }
   .btn-exp.green { background: #15803d; color: #f0fdf4; } .btn-exp.green:hover { background: #16a34a; }
@@ -865,7 +865,7 @@ const css = `
   .row-check-box { width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; font-weight: 700; background: var(--bg-input); }
   .row-check-box.on { background: var(--brand); border-color: var(--brand); }
   .task-row.row-selected { background: var(--brand-dim); }
-  .bulk-bar { background: var(--bg-bar); border-top: 1px solid var(--brand); padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+  .bulk-bar { background: var(--bg-bar); border-top: 1px solid var(--brand); padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
   .bulk-bar-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .bulk-count { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--accent); }
   .bulk-link { background: none; border: none; color: var(--text-dim); font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; padding: 4px 6px; min-height: 36px; }
