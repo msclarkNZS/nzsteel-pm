@@ -13,14 +13,15 @@
 //
 // getResultFiles() must return a Promise of [{ name, blob }] — e.g. a tasks
 // xlsx, a notifications xlsx, and one blob per photo.
-
+ 
 import { useState, useEffect, useCallback } from "react";
+import JSZip from "jszip";
 import {
   listWorklists, downloadWorklist, uploadWorklist, pushResult,
-  listResultFolders, listResultFiles, getResultUrl, deleteResultFolder,
+  listResultFolders, listResultFiles, downloadResultFile, deleteResultFolder,
   signInSupervisor, signOutSupervisor, getSupervisor
 } from "./sync.js";
-
+ 
 export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) {
   const [open, setOpen] = useState(false);
   const [supervisor, setSupervisor] = useState(null);
@@ -31,17 +32,17 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [folders, setFolders] = useState([]);
-
+ 
   const note = (m) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
-
+ 
   const refreshWorklists = useCallback(async () => {
     try { setWorklists(await listWorklists()); }
     catch (e) { note("⚠ Could not list worklists: " + (e.message || e)); }
   }, []);
-
+ 
   useEffect(() => { getSupervisor().then(setSupervisor); }, []);
   useEffect(() => { if (open) refreshWorklists(); }, [open, refreshWorklists]);
-
+ 
   const handleLoad = async (name) => {
     setBusy("load");
     try {
@@ -52,7 +53,7 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
     } catch (e) { note("❌ Load failed: " + (e.message || e)); }
     setBusy("");
   };
-
+ 
   const handlePush = async () => {
     setBusy("push");
     try {
@@ -63,7 +64,7 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
     } catch (e) { note("❌ Push failed: " + (e.message || e)); }
     setBusy("");
   };
-
+ 
   const handleSignIn = async () => {
     setBusy("auth");
     try {
@@ -73,9 +74,9 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
     } catch (e) { note("❌ Sign-in failed: " + (e.message || e)); }
     setBusy("");
   };
-
+ 
   const handleSignOut = async () => { await signOutSupervisor(); setSupervisor(null); note("Signed out of supervisor"); };
-
+ 
   const handleUploadWorklist = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     setBusy("upload");
@@ -83,27 +84,35 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
     catch (err) { note("❌ Upload failed: " + (err.message || err)); }
     setBusy(""); e.target.value = "";
   };
-
+ 
   const refreshFolders = async () => {
     try { setFolders(await listResultFolders()); }
     catch (e) { note("⚠ " + (e.message || e)); }
   };
-
+ 
   const collectFolder = async (folder) => {
     setBusy("collect-" + folder);
     try {
       const files = await listResultFiles(folder);
+      if (!files.length) { note("Folder is empty"); setBusy(""); return; }
+      // Bundle everything (xlsx + photos) into one zip — a single, same-origin
+      // download that browsers don't block, and that keeps each tech's push tidy.
+      const zip = new JSZip();
       for (const f of files) {
-        const url = await getResultUrl(f.path);
-        const a = document.createElement("a");
-        a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
-        await new Promise(r => setTimeout(r, 300)); // stagger downloads
+        const blob = await downloadResultFile(f.path);
+        zip.file(f.name, blob);
       }
-      note(`✓ Downloaded ${files.length} file(s) from ${folder}`);
+      const out = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(out);
+      const a = document.createElement("a");
+      a.href = url; a.download = folder + ".zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      note(`✓ Downloaded ${files.length} file(s) as ${folder}.zip`);
     } catch (e) { note("❌ " + (e.message || e)); }
     setBusy("");
   };
-
+ 
   const removeFolder = async (folder) => {
     if (!window.confirm(`Delete results from ${folder}? Download them first.`)) return;
     setBusy("del-" + folder);
@@ -111,21 +120,21 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
     catch (e) { note("❌ " + (e.message || e)); }
     setBusy("");
   };
-
+ 
   const btn = (bg) => ({
     background: bg, color: "white", border: "none", borderRadius: 8,
     fontFamily: "'Roboto Condensed',sans-serif", fontSize: 16, fontWeight: 700,
     letterSpacing: 1, textTransform: "uppercase", padding: "16px", cursor: "pointer",
     minHeight: 56, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
   });
-
+ 
   return (
     <>
       {/* Trigger button — place this in your export bar */}
       <button className="btn-exp blue" style={{ display: "flex", alignItems: "center", gap: 7 }} onClick={() => setOpen(true)}>
         ☁ Sync{supervisor ? " ●" : ""}
       </button>
-
+ 
       {open && (
         <div className="backdrop" onClick={e => e.target === e.currentTarget && setOpen(false)}>
           <div className="panel" style={{ maxWidth: 560 }}>
@@ -139,17 +148,17 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
               </div>
               <button className="panel-x" onClick={() => setOpen(false)}>✕</button>
             </div>
-
+ 
             <div className="panel-body">
               {msg && <div style={{ background: "var(--brand-dim)", border: "1px solid var(--brand)", borderRadius: 6, padding: "10px 14px", fontSize: 14, color: "var(--accent)" }}>{msg}</div>}
-
+ 
               {/* ── Technician actions ── */}
               <div style={{ display: "flex", gap: 10 }}>
                 <button style={{ ...btn("var(--brand)"), flex: 1 }} onClick={handlePush} disabled={busy === "push"}>
                   {busy === "push" ? "Pushing…" : "⬆ Push Results"}
                 </button>
               </div>
-
+ 
               <div className="comment-lbl" style={{ marginTop: 4 }}>Available worklists — tap to load</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {worklists.length === 0 && <div style={{ color: "var(--text-faint)", fontSize: 14, padding: "8px 0" }}>None found. {supervisor ? "Upload one below." : "Ask your supervisor to publish one."}</div>}
@@ -164,7 +173,7 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
                   </button>
                 ))}
               </div>
-
+ 
               {/* ── Supervisor section ── */}
               <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 16 }}>
                 {!supervisor ? (
@@ -189,12 +198,12 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles }) 
                       <div className="comment-lbl" style={{ margin: 0 }}>Supervisor tools</div>
                       <button className="btn-ghost" style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-dim)", padding: "6px 12px", minHeight: 0 }} onClick={handleSignOut}>Sign out</button>
                     </div>
-
+ 
                     <label style={{ ...btn("#15803d"), cursor: "pointer", minHeight: 48, fontSize: 14 }}>
                       {busy === "upload" ? "Publishing…" : "⬆ Publish a worklist"}
                       <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleUploadWorklist} />
                     </label>
-
+ 
                     <button className="btn-ghost" style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-muted)" }} onClick={refreshFolders}>
                       ↻ Show returned results
                     </button>
