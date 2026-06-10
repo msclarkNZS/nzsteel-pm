@@ -24,8 +24,12 @@ export async function checkOnline() {
 
 // ── Worklists (supervisor pushes out, everyone pulls) ──────────────────────────
 const WORKLIST_EXTS = [".xlsx", ".xls", ".csv"];
+// Reserved names kept in the worklists bucket but NOT shown as selectable worklists.
+const FLOC_KEY = "floc-source.xlsx";
+const RESERVED = ["roster.json", FLOC_KEY];
 function isWorklistFile(name) {
   const n = (name || "").toLowerCase();
+  if (RESERVED.includes(n)) return false;
   return WORKLIST_EXTS.some(ext => n.endsWith(ext));
 }
 
@@ -48,6 +52,23 @@ export async function listWorklists() {
 export async function getLatestWorklist() {
   const list = await listWorklists();
   return list.length ? list[0] : null;
+}
+
+// ── Functional-location (IH06) file via the cloud ─────────────────────────────
+// Supervisor publishes the raw IH06 file once; every device fetches and parses
+// it automatically, so techs don't load it by hand.
+export async function uploadFlocFile(blob) {
+  const { error } = await supabase.storage
+    .from(WORKLISTS_BUCKET)
+    .upload(FLOC_KEY, blob, { upsert: true, contentType: blob.type || undefined });
+  if (error) throw error;
+}
+
+// Returns a File for the app's existing parser, or null if none published.
+export async function downloadFlocFile() {
+  const { data, error } = await supabase.storage.from(WORKLISTS_BUCKET).download(FLOC_KEY);
+  if (error || !data) return null;
+  return new File([data], FLOC_KEY, { type: data.type || "application/octet-stream" });
 }
 
 export async function downloadWorklist(name) {
