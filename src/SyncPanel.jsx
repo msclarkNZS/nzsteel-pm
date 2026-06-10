@@ -1,4 +1,4 @@
-// ─── SyncPanel ────────────────────────────────────────────────────────────────
+/ ─── SyncPanel ────────────────────────────────────────────────────────────────
 // Drop-in UI for the shared drop-box. Role-aware:
 //   • Technician (default): big "Load Worklist" + "Push Results" buttons.
 //   • Supervisor (after sign-in): also upload a new worklist and collect/delete
