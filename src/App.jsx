@@ -851,6 +851,23 @@ const css = `
   .btn-exp:disabled { opacity: 0.35; cursor: not-allowed; }
   .offline-msg { font-size: 13px; color: #dc2626; font-family: 'Roboto Condensed', sans-serif; }
 
+  /* ── Bulk selection ── */
+  .row-check { display: flex; align-items: center; padding: 0 4px 0 12px; flex-shrink: 0; }
+  .row-check-box { width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; font-weight: 700; background: var(--bg-input); }
+  .row-check-box.on { background: var(--brand); border-color: var(--brand); }
+  .task-row.row-selected { background: var(--brand-dim); }
+  .bulk-bar { background: var(--bg-bar); border-top: 1px solid var(--brand); padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+  .bulk-bar-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bulk-count { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--accent); }
+  .bulk-link { background: none; border: none; color: var(--text-dim); font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; padding: 4px 6px; min-height: 36px; }
+  .bulk-link:hover { color: var(--text-primary); }
+  .bulk-comment { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 11px 14px; font-size: 15px; font-family: 'Roboto', sans-serif; outline: none; width: 100%; min-height: 44px; }
+  .bulk-comment:focus { border-color: var(--brand); }
+  .bulk-act { flex: 1; border: none; border-radius: 7px; color: white; font-family: 'Roboto Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 14px; cursor: pointer; min-height: 52px; }
+  .bulk-act.done { background: #15803d; } .bulk-act.done:hover { background: #16a34a; }
+  .bulk-act.skip { background: #991b1b; } .bulk-act.skip:hover { background: #dc2626; }
+  .bulk-act:disabled { opacity: 0.4; cursor: not-allowed; }
+
   /* ── Detail panel ── */
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
   .panel { background: var(--bg-mid); width: 100%; max-width: 780px; border-radius: 14px 14px 0 0; border-top: 3px solid var(--brand); display: flex; flex-direction: column; max-height: 92vh; animation: slideUp 0.2s ease; }
@@ -1075,6 +1092,11 @@ export default function App() {
   // Panel
   const [activeGroupId, setActiveGroupId] = useState(null);
   const [panelComment, setPanelComment]   = useState("");
+
+  // Bulk selection (main-screen multi-close)
+  const [selectMode, setSelectMode]   = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkComment, setBulkComment] = useState("");
 
   // ── Notifications & Issues
   // Each item: { id, type: "notification"|"issue", taskId?, functLocation, title, description, photos: [dataUrl], createdAt, createdBy }
@@ -1425,6 +1447,24 @@ export default function App() {
     setPanelComment(""); setActiveGroupId(null);
   };
 
+  // ── Bulk selection helpers ──────────────────────────────────────────────────
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); setBulkComment(""); };
+  const selectAllFiltered = () => setSelectedIds(new Set(filtered.map(g => g.id)));
+  const applyBulk = (status) => {
+    if (selectedIds.size === 0) return;
+    const ids = [];
+    groupedTasks.forEach(g => { if (selectedIds.has(g.id)) ids.push(g.id, ...g.children); });
+    updateManyTasks(ids, { status, comment: bulkComment, actionedAt: new Date().toISOString(), actionedBy: techName });
+    showToast(`${selectedIds.size} job${selectedIds.size !== 1 ? "s" : ""} marked ${STATUS_META[status].label}`);
+    exitSelectMode();
+    if (netStatus === "offline") showToast("📴 Saved locally — export when back online");
+  };
+
   const activeGroup = groupedTasks.find(g => g.id === activeGroupId) || null;
 
   const updateSetting    = (key, val) => setSettings(s => ({ ...s, [key]: val }));
@@ -1527,14 +1567,27 @@ export default function App() {
         blob: new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) });
     }
 
+    // Build photo files with meaningful names (tied to the location + which
+    // notification they belong to), and remember each notification's filenames
+    // so the spreadsheet can reference them directly.
+    const photoNamesByNotif = notifications.map((n, ni) => {
+      const locSlug = (n.functLocation || "loc").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      return n.photos.map((dataUrl, pi) => {
+        const name = `photo_${locSlug}_n${ni + 1}_${pi + 1}.jpg`;
+        files.push({ name, blob: dataURLtoBlob(dataUrl) });
+        return name;
+      });
+    });
+
     if (notifications.length) {
-      const nRows = notifications.map(n => ({
+      const nRows = notifications.map((n, ni) => ({
         Type: n.type === "issue" ? "Task Issue" : "Notification",
         Title: n.title, Description: n.description,
         FunctionalLocation: n.functLocation, LocationDesc: n.functLocationDesc,
         LinkedTaskId: n.taskId, RaisedBy: n.createdBy,
         RaisedAt: n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
-        PhotoCount: n.photos.length
+        PhotoCount: n.photos.length,
+        PhotoFiles: photoNamesByNotif[ni].join("; ")
       }));
       const ws = XLSX.utils.json_to_sheet(nRows);
       const wb = XLSX.utils.book_new();
@@ -1543,12 +1596,6 @@ export default function App() {
       files.push({ name: `notifications_${techName}.xlsx`,
         blob: new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) });
     }
-
-    notifications.forEach((n, ni) => {
-      n.photos.forEach((dataUrl, pi) => {
-        files.push({ name: `photo_${ni + 1}_${pi + 1}.jpg`, blob: dataURLtoBlob(dataUrl) });
-      });
-    });
 
     return files;
   }, [tasks, notifications, techName]);
@@ -1601,7 +1648,12 @@ export default function App() {
         const cc = critColor(updCrit.label);
 
         return (
-          <div className={"task-row" + (depth>0 ? " indent-" + Math.min(depth,2) : "")} key={g.id} onClick={()=>openGroup(g)}>
+          <div className={"task-row" + (depth>0 ? " indent-" + Math.min(depth,2) : "") + (selectMode && selectedIds.has(g.id) ? " row-selected" : "")} key={g.id} onClick={()=> selectMode ? toggleSelect(g.id) : openGroup(g)}>
+            {selectMode && (
+              <div className="row-check" onClick={e=>{e.stopPropagation();toggleSelect(g.id);}}>
+                <span className={"row-check-box" + (selectedIds.has(g.id) ? " on" : "")}>{selectedIds.has(g.id) ? "✓" : ""}</span>
+              </div>
+            )}
             <div className="row-bar" style={{background:sm.border}}/>
             <div className="row-body">
               <div className="row-top">
@@ -2286,6 +2338,10 @@ export default function App() {
                 {fieldMap.systemCondition && <select className={`f-sel${dropCondition?" active":""}`}   value={dropCondition}   onChange={e=>setDropCondition(e.target.value)}  ><option value="">All Conditions</option>{uniqueVals("systemCondition").map(v=><option key={v}>{v}</option>)}</select>}
                 {fieldMap.interval        && <select className={`f-sel${dropInterval?" active":""}`}    value={dropInterval}    onChange={e=>setDropInterval(e.target.value)}   ><option value="">All Intervals</option>{uniqueVals("interval").map(v=><option key={v}>{v}</option>)}</select>}
                 {hasFilter && <button className="clear-all" onClick={resetFilters}>✕ Clear</button>}
+                <button className={`f-status-btn${selectMode?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
+                  onClick={()=> selectMode ? exitSelectMode() : setSelectMode(true)}>
+                  {selectMode ? "✕ Cancel" : "☑ Select"}
+                </button>
                 <span className="filter-count">{filtered.length} / {total}</span>
               </div>
 
@@ -2331,6 +2387,21 @@ export default function App() {
                 : displayTree ? renderTree(displayTree) : filtered.map(g=>renderTree([g]))
               }
             </div>
+
+            {selectMode && (
+              <div className="bulk-bar">
+                <div className="bulk-bar-row">
+                  <span className="bulk-count">{selectedIds.size} selected</span>
+                  <button className="bulk-link" onClick={selectAllFiltered}>Select all {filtered.length}</button>
+                  {selectedIds.size>0 && <button className="bulk-link" onClick={()=>setSelectedIds(new Set())}>Clear</button>}
+                </div>
+                <input className="bulk-comment" placeholder="Optional comment applied to all selected…" value={bulkComment} onChange={e=>setBulkComment(e.target.value)}/>
+                <div className="bulk-bar-row">
+                  <button className="bulk-act done" disabled={selectedIds.size===0} onClick={()=>applyBulk(STATUS.DONE)}>✓ Complete ({selectedIds.size})</button>
+                  <button className="bulk-act skip" disabled={selectedIds.size===0} onClick={()=>applyBulk(STATUS.SKIPPED)}>✗ Not Done ({selectedIds.size})</button>
+                </div>
+              </div>
+            )}
 
             <div className="export-bar">
               {/* Export menu button */}
