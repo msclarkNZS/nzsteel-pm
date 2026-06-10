@@ -23,18 +23,31 @@ export async function checkOnline() {
 }
 
 // ── Worklists (supervisor pushes out, everyone pulls) ──────────────────────────
+const WORKLIST_EXTS = [".xlsx", ".xls", ".csv"];
+function isWorklistFile(name) {
+  const n = (name || "").toLowerCase();
+  return WORKLIST_EXTS.some(ext => n.endsWith(ext));
+}
+
 export async function listWorklists() {
   const { data, error } = await supabase.storage
     .from(WORKLISTS_BUCKET)
     .list("", { limit: 100, sortBy: { column: "updated_at", order: "desc" } });
   if (error) throw error;
   return (data || [])
-    .filter(f => f.name && !f.name.startsWith("."))
+    .filter(f => f.name && !f.name.startsWith(".") && isWorklistFile(f.name))
     .map(f => ({
       name: f.name,
       size: f.metadata?.size ?? 0,
       updatedAt: f.updated_at || f.created_at || null
     }));
+}
+
+// The most recently updated worklist, or null. Used for the "newer worklist
+// available" prompt on app open.
+export async function getLatestWorklist() {
+  const list = await listWorklists();
+  return list.length ? list[0] : null;
 }
 
 export async function downloadWorklist(name) {
@@ -107,6 +120,34 @@ export async function deleteResultFolder(folder) {
   if (paths.length === 0) return;
   const { error } = await supabase.storage.from(RESULTS_BUCKET).remove(paths);
   if (error) throw error;
+}
+
+// ── Technician roster (light user management) ─────────────────────────────────
+// Stored as roster.json in the worklists bucket, which already allows anon read
+// (so the sign-in screen can offer a name dropdown) and supervisor-only write.
+const ROSTER_KEY = "roster.json";
+
+export async function getRoster() {
+  try {
+    const { data, error } = await supabase.storage.from(WORKLISTS_BUCKET).download(ROSTER_KEY);
+    if (error) return [];
+    const text = await data.text();
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// Supervisor only.
+export async function saveRoster(names) {
+  const clean = [...new Set((names || []).map(n => String(n).trim()).filter(Boolean))].sort();
+  const blob = new Blob([JSON.stringify(clean)], { type: "application/json" });
+  const { error } = await supabase.storage
+    .from(WORKLISTS_BUCKET)
+    .upload(ROSTER_KEY, blob, { upsert: true, contentType: "application/json" });
+  if (error) throw error;
+  return clean;
 }
 
 // ── Supervisor auth ─────────────────────────────────────────────────────────
