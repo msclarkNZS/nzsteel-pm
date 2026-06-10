@@ -1030,6 +1030,17 @@ const css = `
   .toast { position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); background: var(--brand); color: white; font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; padding: 12px 22px; border-radius: 6px; box-shadow: 0 4px 24px var(--shadow); z-index: 400; animation: fadeInUp 0.25s ease; pointer-events: none; white-space: nowrap; }
   @keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 
+  /* ── Phone layout (portrait, ≤600px): keep the top ribbon controls reachable ── */
+  @media (max-width: 600px) {
+    .hdr { padding: 0 10px; gap: 8px; }
+    .hdr-brand { padding-right: 10px; gap: 8px; border-right: none; }
+    .hdr-brand-text { display: none; }   /* keep the logo, drop the wordmark */
+    .hdr-center { display: none; }        /* hide stat pills/progress on phone */
+    .hdr-right { gap: 6px; }
+    .hdr-logo { width: 38px; height: 38px; }
+    .hdr-user-chip { padding: 8px 10px; }
+  }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
