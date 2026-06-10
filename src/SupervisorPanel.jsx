@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import JSZip from "jszip";
 import {
   uploadWorklist, listResultFolders, listResultFiles, downloadResultFile,
-  deleteResultFolder, getRoster, saveRoster,
+  deleteResultFolder, getRoster, saveRoster, uploadFlocFile,
   signInSupervisor, signOutSupervisor, getSupervisor
 } from "./sync.js";
 
@@ -55,6 +55,14 @@ export default function SupervisorPanel({ onToast }) {
     setBusy("publish");
     try { await uploadWorklist(file.name, file); note(`✓ Published ${file.name}`); }
     catch (err) { note("❌ Publish failed: " + (err.message || err)); }
+    setBusy(""); e.target.value = "";
+  };
+
+  const handlePublishFloc = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setBusy("floc");
+    try { await uploadFlocFile(file); note("✓ Published location file — devices will fetch it"); }
+    catch (err) { note("❌ Location file failed: " + (err.message || err)); }
     setBusy(""); e.target.value = "";
   };
 
@@ -138,6 +146,11 @@ export default function SupervisorPanel({ onToast }) {
                 <input type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handlePublish}/>
               </label>
               <div className="settings-desc">Uploads the file to the shared cloud. Technicians will see it (and a "newer worklist available" prompt) next time they open the app.</div>
+              <label className="btn-ghost" style={{alignSelf:"flex-start",cursor:"pointer",background:"var(--bg-input)",border:"1px solid var(--border)",color:"var(--text-muted)",marginTop:8}}>
+                {busy==="floc"?"Publishing…":"📍 Publish location (IH06) file"}
+                <input type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handlePublishFloc}/>
+              </label>
+              <div className="settings-desc">Published once; every device fetches and applies it automatically so technicians don't load it by hand.</div>
             </div>
 
             {/* Returned results */}
