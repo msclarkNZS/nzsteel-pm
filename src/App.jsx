@@ -1098,6 +1098,9 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkComment, setBulkComment] = useState("");
 
+  // Collapsible filters/search panel (closed by default to keep the top tidy)
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   // ── Notifications & Issues
   // Each item: { id, type: "notification"|"issue", taskId?, functLocation, title, description, photos: [dataUrl], createdAt, createdBy }
   const [notifications, setNotifications]       = useState([]);
@@ -1401,6 +1404,11 @@ export default function App() {
   const hasFilter = statusFilter!=="all"||searchFloc||searchOpText||searchLimit||
     searchAction||searchProcedure||searchOrder||dropLubricant||dropRoute||
     dropCriticality||dropUpdatedCriticality||dropCondition||dropInterval||hierL1||hierL2||hierL3;
+
+  // Count of active *secondary* filters (everything except the always-visible status)
+  const activeFilterCount = [searchFloc,searchOpText,searchLimit,searchAction,searchProcedure,
+    searchOrder,dropLubricant,dropRoute,dropCriticality,dropUpdatedCriticality,dropCondition,
+    dropInterval,hierL1,hierL2,hierL3].filter(Boolean).length;
 
   const done         = groupedTasks.filter(g => g.status===STATUS.DONE).length;
   const skipped      = groupedTasks.filter(g => g.status===STATUS.SKIPPED).length;
@@ -2318,6 +2326,20 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                <button className={`f-status-btn${filtersOpen||activeFilterCount>0?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
+                  onClick={()=>setFiltersOpen(o=>!o)}>
+                  {filtersOpen?"▴":"▾"} Filters{activeFilterCount>0?` (${activeFilterCount})`:""}
+                </button>
+                {hasFilter && <button className="clear-all" onClick={resetFilters}>✕ Clear</button>}
+                <button className={`f-status-btn${selectMode?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
+                  onClick={()=> selectMode ? exitSelectMode() : setSelectMode(true)}>
+                  {selectMode ? "✕ Cancel" : "☑ Select"}
+                </button>
+                <span className="filter-count">{filtered.length} / {total}</span>
+              </div>
+
+              {filtersOpen && (<>
+              <div className="filter-row">
                 {fieldMap.lubricant    && <select className={`f-sel${dropLubricant?" active":""}`}   value={dropLubricant}   onChange={e=>setDropLubricant(e.target.value)}  ><option value="">All Lubricants</option>{uniqueVals("lubricant").map(v=><option key={v}>{v}</option>)}</select>}
                 {fieldMap.route        && <select className={`f-sel${dropRoute?" active":""}`}        value={dropRoute}        onChange={e=>setDropRoute(e.target.value)}       ><option value="">All Routes</option>{uniqueVals("route").map(v=><option key={v}>{v}</option>)}</select>}
                 {fieldMap.criticalityInd && (
@@ -2337,12 +2359,6 @@ export default function App() {
                 )}
                 {fieldMap.systemCondition && <select className={`f-sel${dropCondition?" active":""}`}   value={dropCondition}   onChange={e=>setDropCondition(e.target.value)}  ><option value="">All Conditions</option>{uniqueVals("systemCondition").map(v=><option key={v}>{v}</option>)}</select>}
                 {fieldMap.interval        && <select className={`f-sel${dropInterval?" active":""}`}    value={dropInterval}    onChange={e=>setDropInterval(e.target.value)}   ><option value="">All Intervals</option>{uniqueVals("interval").map(v=><option key={v}>{v}</option>)}</select>}
-                {hasFilter && <button className="clear-all" onClick={resetFilters}>✕ Clear</button>}
-                <button className={`f-status-btn${selectMode?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
-                  onClick={()=> selectMode ? exitSelectMode() : setSelectMode(true)}>
-                  {selectMode ? "✕ Cancel" : "☑ Select"}
-                </button>
-                <span className="filter-count">{filtered.length} / {total}</span>
               </div>
 
               {flocHier && l1Options.length>0 && (
@@ -2379,6 +2395,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              </>)}
             </div>
 
             <div className="task-list">
