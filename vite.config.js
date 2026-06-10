@@ -5,7 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // If you later host under a sub-path (e.g. GitHub Pages /repo-name/),
 // set base to "/repo-name/". For root hosting leave it as "/".
 export default defineConfig({
-  base: "/",
+  base: "/nzsteel-pm/",
   plugins: [
     react(),
     VitePWA({
