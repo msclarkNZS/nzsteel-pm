@@ -3,6 +3,8 @@ import * as XLSX from "xlsx";
 import { saveSession, loadSession, clearSession } from "./storage.js";
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
+import SupervisorPanel from "./SupervisorPanel.jsx";
+import { getRoster, getLatestWorklist, downloadWorklist } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
 function injectMsal(callback) {
@@ -852,6 +854,13 @@ const css = `
   .offline-msg { font-size: 13px; color: #dc2626; font-family: 'Roboto Condensed', sans-serif; }
 
   /* ── Bulk selection ── */
+  .worklist-alert { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--brand-dim); border-bottom: 2px solid var(--brand); flex-shrink: 0; }
+  .worklist-alert-ico { font-size: 18px; flex-shrink: 0; }
+  .worklist-alert-text { flex: 1; font-size: 14px; color: var(--text-primary); min-width: 0; }
+  .worklist-alert-load { background: var(--brand); color: white; border: none; border-radius: 6px; font-family: 'Roboto Condensed', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 8px 18px; cursor: pointer; min-height: 40px; flex-shrink: 0; }
+  .worklist-alert-load:hover { background: var(--brand-light); }
+  .worklist-alert-x { background: none; border: 1px solid var(--border-light); color: var(--text-dim); border-radius: 6px; width: 36px; height: 36px; cursor: pointer; flex-shrink: 0; font-size: 14px; }
+  .worklist-alert-x:hover { color: var(--text-primary); } */
   .row-check { display: flex; align-items: center; padding: 0 4px 0 12px; flex-shrink: 0; }
   .row-check-box { width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; font-weight: 700; background: var(--bg-input); }
   .row-check-box.on { background: var(--brand); border-color: var(--brand); }
@@ -1101,6 +1110,12 @@ export default function App() {
   // Collapsible filters/search panel (closed by default to keep the top tidy)
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Worklist freshness (new-worklist-available prompt) + technician roster
+  const [loadedWorklist, setLoadedWorklist]   = useState(null); // { name, updatedAt }
+  const [latestWorklist, setLatestWorklist]   = useState(null); // { name, updatedAt }
+  const [worklistAlertDismissed, setWorklistAlertDismissed] = useState(false);
+  const [rosterNames, setRosterNames]         = useState([]);
+
   // ── Notifications & Issues
   // Each item: { id, type: "notification"|"issue", taskId?, functLocation, title, description, photos: [dataUrl], createdAt, createdBy }
   const [notifications, setNotifications]       = useState([]);
@@ -1130,9 +1145,9 @@ export default function App() {
   // Auto-save
   useEffect(() => {
     if (tasks.length === 0) return;
-    saveSession({ tasks, fieldMap, columns, rawData, settings, descMap, notifications });
+    saveSession({ tasks, fieldMap, columns, rawData, settings, descMap, notifications, loadedWorklist });
     setLastSaved(new Date().toLocaleTimeString());
-  }, [tasks, settings, fieldMap, columns, rawData, descMap, notifications]);
+  }, [tasks, settings, fieldMap, columns, rawData, descMap, notifications, loadedWorklist]);
 
   // Restore session
   useEffect(() => {
@@ -1143,6 +1158,7 @@ export default function App() {
         setRawData(saved.rawData || []);
         if (saved.settings) setSettings(s => ({ ...s, ...saved.settings }));
         if (saved.notifications) setNotifications(saved.notifications);
+        if (saved.loadedWorklist) setLoadedWorklist(saved.loadedWorklist);
         if (saved.descMap && Object.keys(saved.descMap).length > 0) {
           setDescMap(saved.descMap); setDescMapLoaded(true); setDescMapCount(Object.keys(saved.descMap).length);
         }
@@ -1150,6 +1166,17 @@ export default function App() {
       }
     })();
   }, []);
+
+  // Load technician roster (for the sign-in name dropdown). Safe if offline/unset.
+  useEffect(() => { getRoster().then(setRosterNames).catch(() => setRosterNames([])); }, []);
+
+  // When on the list screen and online, check whether a newer worklist exists.
+  useEffect(() => {
+    if (screen !== "list" || netStatus !== "online") return;
+    let cancelled = false;
+    getLatestWorklist().then(latest => { if (!cancelled) setLatestWorklist(latest); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [screen, netStatus]);
 
   // MSAL init
   useEffect(() => {
@@ -1247,6 +1274,20 @@ export default function App() {
   }, [settings.columnMappings]);
 
   const onDrop = (e) => { e.preventDefault(); setDrag(false); processFile(e.dataTransfer.files[0]); };
+
+  // Load a worklist straight from the cloud (used by the "newer worklist" prompt).
+  const loadWorklistByName = async (name, meta) => {
+    if (netStatus !== "online") { showToast("📴 Offline — cannot load"); return; }
+    const inProgress = tasks.some(t => t.status !== STATUS.PENDING);
+    if (inProgress && !window.confirm("Loading a new worklist will replace your current one, including any in-progress work you haven't pushed yet. Continue?")) return;
+    try {
+      const file = await downloadWorklist(name);
+      await processFile(file);
+      setLoadedWorklist(meta || { name, updatedAt: null });
+      setWorklistAlertDismissed(false);
+      showToast(`✓ Loaded ${name}`);
+    } catch (e) { showToast("❌ Load failed: " + (e.message || e)); }
+  };
 
   const fetchFromSharePoint = async () => {
     if (!settings.sourceUrl) { showToast("⚠ Configure SharePoint URL in Settings first"); return; }
@@ -1764,9 +1805,25 @@ export default function App() {
             )}
             <div className="form-row">
               <div className="form-lbl">Your Name</div>
-              <input className="form-input" placeholder="e.g. John Smith" value={manualName}
-                onChange={e=>setManualName(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&manualName.trim()&&setManualAuthed(true)} autoFocus/>
+              {rosterNames.length > 0 ? (
+                <>
+                  <select className="form-input" value={rosterNames.includes(manualName) ? manualName : (manualName === "" ? "" : "__other__")}
+                    onChange={e=>{ const v=e.target.value; setManualName(v==="__other__"||v==="" ? "" : v); }}>
+                    <option value="">— Select your name —</option>
+                    {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
+                    <option value="__other__">Other (type my name)…</option>
+                  </select>
+                  {!rosterNames.includes(manualName) && (
+                    <input className="form-input" style={{marginTop:8}} placeholder="Type your name" value={manualName}
+                      onChange={e=>setManualName(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&manualName.trim()&&setManualAuthed(true)}/>
+                  )}
+                </>
+              ) : (
+                <input className="form-input" placeholder="e.g. John Smith" value={manualName}
+                  onChange={e=>setManualName(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&manualName.trim()&&setManualAuthed(true)} autoFocus/>
+              )}
             </div>
             <button className="btn-primary" style={{width:"100%"}} disabled={!manualName.trim()} onClick={()=>setManualAuthed(true)}>
               {msalConfigured ? "Continue without Microsoft →" : "Start →"}
@@ -1912,6 +1969,8 @@ export default function App() {
           <div className="settings-screen">
             <div className="settings-inner">
               <div className="settings-title">Settings</div>
+
+              <SupervisorPanel onToast={showToast} />
 
               {/* Azure SSO */}
               <div className="settings-section">
@@ -2317,6 +2376,25 @@ export default function App() {
         {/* ══ Main list ══ */}
         {screen === "list" && (
           <div className="list-layout">
+            {(() => {
+              const newer = latestWorklist && !worklistAlertDismissed && (
+                !loadedWorklist ||
+                latestWorklist.name !== loadedWorklist.name ||
+                (latestWorklist.updatedAt && loadedWorklist.updatedAt && latestWorklist.updatedAt > loadedWorklist.updatedAt)
+              );
+              if (!newer) return null;
+              return (
+                <div className="worklist-alert">
+                  <span className="worklist-alert-ico">🆕</span>
+                  <div className="worklist-alert-text">
+                    A newer worklist is available — <strong>{latestWorklist.name}</strong>
+                    {latestWorklist.updatedAt && <span style={{opacity:0.8}}> ({new Date(latestWorklist.updatedAt).toLocaleString()})</span>}
+                  </div>
+                  <button className="worklist-alert-load" onClick={()=>loadWorklistByName(latestWorklist.name, latestWorklist)}>Load</button>
+                  <button className="worklist-alert-x" onClick={()=>setWorklistAlertDismissed(true)}>✕</button>
+                </div>
+              );
+            })()}
             <div className="filter-bar">
               <div className="filter-row">
                 <div className="f-status-group">
@@ -2517,7 +2595,7 @@ export default function App() {
 
               <SyncPanel
                 techName={techName}
-                onLoadWorklist={(file) => processFile(file)}
+                onLoadWorklist={(file, meta) => { processFile(file); setLoadedWorklist(meta || null); setWorklistAlertDismissed(false); }}
                 getResultFiles={getResultFiles}
               />
 
