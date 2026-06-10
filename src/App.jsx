@@ -4,7 +4,7 @@ import { saveSession, loadSession, clearSession } from "./storage.js";
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
-import { getRoster, getLatestWorklist, downloadWorklist } from "./sync.js";
+import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
 function injectMsal(callback) {
@@ -1052,7 +1052,7 @@ export default function App() {
   const techName = authAccount?.name || authAccount?.username || manualName || "Technician";
 
   // Data
-  const [screen, setScreen]     = useState("upload");
+  const [screen, setScreen]     = useState("list");
   const [rawData, setRawData]   = useState([]);
   const [columns, setColumns]   = useState([]);
   const [fieldMap, setFieldMap] = useState({});
@@ -1169,6 +1169,23 @@ export default function App() {
 
   // Load technician roster (for the sign-in name dropdown). Safe if offline/unset.
   useEffect(() => { getRoster().then(setRosterNames).catch(() => setRosterNames([])); }, []);
+
+  // Auto-fetch the published location (IH06) file if we don't already have one.
+  useEffect(() => {
+    if (netStatus !== "online" || descMapLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const file = await downloadFlocFile();
+        if (!file || cancelled) return;
+        const map = await parseFlocDescFile(file);
+        if (cancelled) return;
+        const count = Object.keys(map).length;
+        if (count > 0) { setDescMap(map); setDescMapLoaded(true); setDescMapCount(count); }
+      } catch { /* none published yet — fine */ }
+    })();
+    return () => { cancelled = true; };
+  }, [netStatus, descMapLoaded]);
 
   // When on the list screen and online, check whether a newer worklist exists.
   useEffect(() => {
@@ -2478,7 +2495,7 @@ export default function App() {
 
             <div className="task-list">
               {filtered.length===0
-                ? <div className="empty-state">No tasks match current filters</div>
+                ? <div className="empty-state">{tasks.length===0 ? "No worklist loaded — tap ☁ Sync below to load one" : "No tasks match current filters"}</div>
                 : displayTree ? renderTree(displayTree) : filtered.map(g=>renderTree([g]))
               }
             </div>
