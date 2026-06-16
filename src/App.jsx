@@ -4,6 +4,7 @@ import { saveSession, loadSession, clearSession } from "./storage.js";
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
+import HelpPanel from "./HelpPanel.jsx";
 import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
@@ -1064,6 +1065,14 @@ export default function App() {
 
   // Data
   const [screen, setScreen]     = useState("list");
+  // Help: auto-open once on first use, then only when the ? button is tapped.
+  const [showHelp, setShowHelp] = useState(() => {
+    try { return !localStorage.getItem("pm-help-seen"); } catch { return false; }
+  });
+  const closeHelp = useCallback(() => {
+    setShowHelp(false);
+    try { localStorage.setItem("pm-help-seen", "1"); } catch {}
+  }, []);
   const [rawData, setRawData]   = useState([]);
   const [columns, setColumns]   = useState([]);
   const [fieldMap, setFieldMap] = useState({});
@@ -1899,6 +1908,7 @@ export default function App() {
           )}
           <div className="hdr-right">
             {screen === "list" && <button className="btn-ghost" onClick={()=>{setScreen("upload");setTasks([]);clearSession();}}>↑ New File</button>}
+            <button className="hdr-icon-btn" title="Help" onClick={()=>setShowHelp(true)}>?</button>
             {screen !== "settings"
               ? <button className="hdr-icon-btn" title="Settings" onClick={()=>setScreen("settings")}>⚙</button>
               : <button className="btn-ghost" onClick={()=>setScreen(tasks.length>0?"list":"upload")}>← Back</button>
@@ -3012,6 +3022,8 @@ export default function App() {
             </div>
           );
         })()}
+
+        <HelpPanel open={showHelp} onClose={closeHelp} />
       </div>
     </>
   );
