@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { saveSession, loadSession, clearSession } from "./storage.js";
+import { saveSession, loadSession, clearSession, saveAuth, loadAuth, clearAuth } from "./storage.js";
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
-import HelpPanel from "./HelpPanel.jsx";
 import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
@@ -671,8 +670,8 @@ function critColor(val) {
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;800&family=Roboto:wght@300;400;500;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { font-size: 16px; }
-  body { font-family: 'Roboto', sans-serif; background: var(--bg-app); color: var(--text-primary); min-height: 100vh; -webkit-text-size-adjust: 100%; transition: background 0.25s, color 0.25s; }
+  html { font-size: 16px; overscroll-behavior: none; }
+  body { font-family: 'Roboto', sans-serif; background: var(--bg-app); color: var(--text-primary); min-height: 100vh; -webkit-text-size-adjust: 100%; transition: background 0.25s, color 0.25s; overscroll-behavior: none; }
   .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; padding-top: env(safe-area-inset-top, 0px); background: var(--bg-header); }
 
   /* ── Header ── */
@@ -820,7 +819,7 @@ const css = `
   .crit-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: middle; flex-shrink: 0; }
 
   /* ── Task rows ── */
-  .task-list { flex: 1; overflow-y: auto; }
+  .task-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .task-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--bg-mid); cursor: pointer; transition: background 0.1s; min-height: 72px; background: var(--bg-app); }
   .task-row:hover { background: var(--row-hover); }
   .task-row:active { filter: brightness(1.1); }
@@ -1065,14 +1064,6 @@ export default function App() {
 
   // Data
   const [screen, setScreen]     = useState("list");
-  // Help: auto-open once on first use, then only when the ? button is tapped.
-  const [showHelp, setShowHelp] = useState(() => {
-    try { return !localStorage.getItem("pm-help-seen"); } catch { return false; }
-  });
-  const closeHelp = useCallback(() => {
-    setShowHelp(false);
-    try { localStorage.setItem("pm-help-seen", "1"); } catch {}
-  }, []);
   const [rawData, setRawData]   = useState([]);
   const [columns, setColumns]   = useState([]);
   const [fieldMap, setFieldMap] = useState({});
@@ -1190,6 +1181,14 @@ export default function App() {
   // Load technician roster (for the sign-in name dropdown). Safe if offline/unset.
   useEffect(() => { getRoster().then(setRosterNames).catch(() => setRosterNames([])); }, []);
 
+  // Restore a persisted manual sign-in so a reload / accidental refresh doesn't
+  // bounce the technician back to the sign-in screen.
+  useEffect(() => {
+    loadAuth().then(a => {
+      if (a?.manualName) { setManualName(a.manualName); setManualAuthed(true); }
+    }).catch(() => {});
+  }, []);
+
   // Auto-fetch the published location (IH06) file if we don't already have one.
   useEffect(() => {
     if (netStatus !== "online" || descMapLoaded) return;
@@ -1272,7 +1271,16 @@ export default function App() {
   const handleSignOut = () => {
     if (msalInstance && authAccount) msalInstance.logoutPopup({ account: authAccount }).catch(() => {});
     setAuthAccount(null); setManualAuthed(false); setManualName(""); setSignOutConfirm(false);
+    clearAuth();
     showToast("Signed out");
+  };
+
+  // Manual (name) sign-in that persists across reloads.
+  const doManualSignIn = () => {
+    const name = manualName.trim();
+    if (!name) return;
+    setManualAuthed(true);
+    saveAuth({ manualName: name });
   };
 
   // ─── Location description file loader ────────────────────────────────────────
@@ -1853,16 +1861,16 @@ export default function App() {
                   {!rosterNames.includes(manualName) && (
                     <input className="form-input" style={{marginTop:8}} placeholder="Type your name" value={manualName}
                       onChange={e=>setManualName(e.target.value)}
-                      onKeyDown={e=>e.key==="Enter"&&manualName.trim()&&setManualAuthed(true)}/>
+                      onKeyDown={e=>e.key==="Enter"&&doManualSignIn()}/>
                   )}
                 </>
               ) : (
                 <input className="form-input" placeholder="e.g. John Smith" value={manualName}
                   onChange={e=>setManualName(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&manualName.trim()&&setManualAuthed(true)} autoFocus/>
+                  onKeyDown={e=>e.key==="Enter"&&doManualSignIn()} autoFocus/>
               )}
             </div>
-            <button className="btn-primary" style={{width:"100%"}} disabled={!manualName.trim()} onClick={()=>setManualAuthed(true)}>
+            <button className="btn-primary" style={{width:"100%"}} disabled={!manualName.trim()} onClick={doManualSignIn}>
               {msalConfigured ? "Continue without Microsoft →" : "Start →"}
             </button>
             {!msalConfigured && (
@@ -1908,7 +1916,6 @@ export default function App() {
           )}
           <div className="hdr-right">
             {screen === "list" && <button className="btn-ghost" onClick={()=>{setScreen("upload");setTasks([]);clearSession();}}>↑ New File</button>}
-            <button className="hdr-icon-btn" title="Help" onClick={()=>setShowHelp(true)}>?</button>
             {screen !== "settings"
               ? <button className="hdr-icon-btn" title="Settings" onClick={()=>setScreen("settings")}>⚙</button>
               : <button className="btn-ghost" onClick={()=>setScreen(tasks.length>0?"list":"upload")}>← Back</button>
@@ -3022,8 +3029,6 @@ export default function App() {
             </div>
           );
         })()}
-
-        <HelpPanel open={showHelp} onClose={closeHelp} />
       </div>
     </>
   );
