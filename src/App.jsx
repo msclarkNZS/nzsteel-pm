@@ -803,6 +803,8 @@ const css = `
   .filter-count { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; color: var(--text-faint); white-space: nowrap; margin-left: auto; }
   .clear-all { font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 4px 6px; min-height: 36px; }
   .clear-all:hover { color: var(--text-muted); }
+  .grouping-panel { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+  .grouping-panel-desc { font-size: 12px; color: var(--text-faint); line-height: 1.4; }
 
   /* ── Group headers ── */
   .group-hdr { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--group-hdr); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; min-height: 52px; }
@@ -1120,6 +1122,7 @@ export default function App() {
 
   // Collapsible filters/search panel (closed by default to keep the top tidy)
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [groupingOpen, setGroupingOpen] = useState(false);
 
   // Worklist freshness (new-worklist-available prompt) + technician roster
   const [loadedWorklist, setLoadedWorklist]   = useState(null); // { name, updatedAt }
@@ -2246,45 +2249,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Task Grouping */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">📂</span><span className="settings-section-title">Task Grouping</span></div>
-                <div className="settings-section-body">
-                  <div className="settings-desc">Up to 3 levels. Criticality groups are ordered Critical → Moderate → Minor → Low → Not Reviewed. Location levels use descriptions when the location file is loaded.</div>
-                  <div className="group-config-list">
-                    {settings.groupConfig.map((cfg,i) => (
-                      <div className="group-config-item" key={i}>
-                        <span className="group-config-num">L{i+1}</span>
-                        <select className="group-config-select" value={`${cfg.type}:${cfg.value}`} onChange={e=>changeGroupLevel(i,e.target.value)}>
-                          {GROUP_OPTIONS.map(o=>(
-                            <option key={`${o.type}:${o.value}`} value={`${o.type}:${o.value}`}>{o.label}</option>
-                          ))}
-                        </select>
-                        <button className="group-config-remove" onClick={()=>removeGroupLevel(i)}>✕</button>
-                      </div>
-                    ))}
-                    {settings.groupConfig.length < 3 && (
-                      <button className="group-add-btn" onClick={addGroupLevel}>+ Add grouping level</button>
-                    )}
-                  </div>
-                  {settings.groupConfig.length > 0 && (
-                    <div className="group-preview">
-                      <div className="group-preview-title">Structure preview</div>
-                      {settings.groupConfig.map((cfg,i) => (
-                        <div className="group-preview-item" key={i} style={{paddingLeft:i*18}}>
-                          {i>0&&<span className="group-preview-arrow">└</span>}
-                          <span>{cfg.label}</span>
-                        </div>
-                      ))}
-                      <div className="group-preview-item" style={{paddingLeft:settings.groupConfig.length*18,color:"#3d5a7a"}}>
-                        <span className="group-preview-arrow">└</span>
-                        <span style={{fontStyle:"italic"}}>Individual tasks</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Updated Criticality Settings */}
               <div className="settings-section">
                 <div className="settings-section-hdr"><span className="settings-section-icon">⚡</span><span className="settings-section-title">Updated Criticality</span></div>
@@ -2450,8 +2414,12 @@ export default function App() {
                   ))}
                 </div>
                 <button className={`f-status-btn${filtersOpen||activeFilterCount>0?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
-                  onClick={()=>setFiltersOpen(o=>!o)}>
+                  onClick={()=>{setFiltersOpen(o=>!o);setGroupingOpen(false);}}>
                   {filtersOpen?"▴":"▾"} Filters{activeFilterCount>0?` (${activeFilterCount})`:""}
+                </button>
+                <button className={`f-status-btn${groupingOpen||settings.groupConfig.length>0?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
+                  onClick={()=>{setGroupingOpen(o=>!o);setFiltersOpen(false);}}>
+                  {groupingOpen?"▴":"▾"} Grouping{settings.groupConfig.length>0?` (${settings.groupConfig.length})`:""}
                 </button>
                 {hasFilter && <button className="clear-all" onClick={resetFilters}>✕ Clear</button>}
                 <button className={`f-status-btn${selectMode?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
@@ -2519,6 +2487,31 @@ export default function App() {
                 ))}
               </div>
               </>)}
+
+              {groupingOpen && (
+                <div className="grouping-panel">
+                  <div className="grouping-panel-desc">Group the list by up to 3 levels. Location levels show descriptions when the location file is loaded.</div>
+                  <div className="group-config-list">
+                    {settings.groupConfig.map((cfg,i) => (
+                      <div className="group-config-item" key={i}>
+                        <span className="group-config-num">L{i+1}</span>
+                        <select className="group-config-select" value={`${cfg.type}:${cfg.value}`} onChange={e=>changeGroupLevel(i,e.target.value)}>
+                          {GROUP_OPTIONS.map(o=>(
+                            <option key={`${o.type}:${o.value}`} value={`${o.type}:${o.value}`}>{o.label}</option>
+                          ))}
+                        </select>
+                        <button className="group-config-remove" onClick={()=>removeGroupLevel(i)}>✕</button>
+                      </div>
+                    ))}
+                    {settings.groupConfig.length < 3 && (
+                      <button className="group-add-btn" onClick={addGroupLevel}>+ Add grouping level</button>
+                    )}
+                    {settings.groupConfig.length > 0 && (
+                      <button className="group-add-btn" style={{borderStyle:"solid",color:"var(--text-dim)"}} onClick={()=>updateSetting("groupConfig",[])}>Clear grouping</button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="task-list">
