@@ -176,8 +176,8 @@ export async function saveConfig(config) {
 const PROGRESS_BUCKET = "progress";
 const slug = (s) => String(s || "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "x";
 
-export async function pushProgress(worklistName, techName, progress) {
-  const path = `${slug(worklistName)}/${slug(techName)}.json`;
+export async function pushProgress(worklistName, fileKey, progress) {
+  const path = `${slug(worklistName)}/${slug(fileKey)}.json`;
   const blob = new Blob([JSON.stringify(progress)], { type: "application/json" });
   const { error } = await supabase.storage
     .from(PROGRESS_BUCKET)
