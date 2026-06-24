@@ -930,6 +930,9 @@ const css = `
   .settings-title  { font-family: 'Roboto Condensed', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-primary); }
   .settings-section { background: var(--bg-mid); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .settings-section-hdr { padding: 14px 20px; background: var(--bg-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .settings-section-toggle { width: 100%; border: none; cursor: pointer; font-family: inherit; text-align: left; color: inherit; }
+  .settings-section-toggle:hover { background: var(--bg-mid); }
+  .settings-section-chevron { margin-left: auto; color: var(--text-faint); font-size: 14px; }
   .settings-section-icon { font-size: 20px; }
   .settings-section-title { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
   .settings-section-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
@@ -1048,6 +1051,21 @@ const css = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 `;
+// ─── Collapsible settings section ──────────────────────────────────────────────
+function Collapsible({ icon, title, defaultOpen = false, accent = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="settings-section" style={accent ? { borderColor: "var(--brand)" } : undefined}>
+      <button className="settings-section-hdr settings-section-toggle" onClick={() => setOpen(o => !o)}>
+        <span className="settings-section-icon">{icon}</span>
+        <span className="settings-section-title">{title}</span>
+        <span className="settings-section-chevron">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && <div className="settings-section-body">{children}</div>}
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -2099,10 +2117,13 @@ export default function App() {
               <SupervisorPanel onToast={showToast} onAuthChange={(u)=>setIsAdmin(!!u)} />
 
               {isAdmin && (<>
-              {/* Azure SSO */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">🔐</span><span className="settings-section-title">Microsoft SSO (Azure)</span></div>
-                <div className="settings-section-body">
+
+              <Collapsible icon="☁" title="Publish Configuration" accent defaultOpen>
+                <div className="settings-desc">Saves the current admin settings (column mappings, criticality rules, file locations, location groups) to the cloud. Every device fetches and applies it the next time it opens — themes and each tech's grouping stay personal.</div>
+                <button className="btn-primary" style={{alignSelf:"flex-start"}} onClick={publishConfig}>☁ Save &amp; Publish Configuration</button>
+              </Collapsible>
+
+              <Collapsible icon="🔐" title="Microsoft SSO (Azure)">
                   <div className="settings-row">
                     <div className="settings-lbl">Azure App (Client) ID</div>
                     <input className="settings-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={settings.azureClientId} onChange={e=>updateSetting("azureClientId",e.target.value)}/>
@@ -2125,13 +2146,9 @@ export default function App() {
                       ✓ Signed in as <strong>{authAccount.name}</strong> ({authAccount.username})
                     </div>
                   )}
-                </div>
-              </div>
+              </Collapsible>
 
-              {/* File Locations */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">📁</span><span className="settings-section-title">File Locations (SharePoint)</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="📁" title="File Locations (SharePoint)">
 
                   {/* Source file */}
                   <div className="settings-row">
@@ -2225,13 +2242,9 @@ export default function App() {
                       <div className="settings-row"><div className="settings-lbl">All-Tasks Filename</div><input className="settings-input" value={settings.exportAllFilename} onChange={e=>updateSetting("exportAllFilename",e.target.value)}/></div>
                     </div>
                   </div>
-                </div>
-              </div>
+              </Collapsible>
 
-              {/* Functional Location Descriptions */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">📍</span><span className="settings-section-title">Functional Location Descriptions</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="📍" title="Functional Location Descriptions">
                   <div className="settings-desc">
                     Load your SAP IH06 functional location export (or any file with "Functional Loc." and "FunctLocDescrip." columns). Location codes in the work list will be shown with their descriptions in filters, groups, and task rows. Reload this file whenever locations are added or descriptions change.
                   </div>
@@ -2261,13 +2274,9 @@ export default function App() {
                       {descMapCount > 10 && <div style={{color:"#3d5a7a",fontSize:12,marginTop:6}}>…and {descMapCount-10} more</div>}
                     </div>
                   )}
-                </div>
-              </div>
+              </Collapsible>
 
-              {/* Location Groups */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">📍</span><span className="settings-section-title">Location Groups</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="📍" title="Location Groups" defaultOpen>
                   <div className="settings-desc">Group Level-1 areas under a name (e.g. RMH, KILNS, MELTERS). Technicians get an area-group selector on the main screen. Remember to <strong>Save &amp; Publish Configuration</strong> below to send changes to all devices.</div>
                   {availableAreas.length === 0 && (
                     <div className="settings-desc" style={{color:"#fbbf24"}}>No areas available yet — publish the location (IH06) file or load a worklist so the app knows the area list.</div>
@@ -2304,13 +2313,9 @@ export default function App() {
                     );
                   })}
                   <button className="group-add-btn" onClick={addLocationGroup}>+ Add location group</button>
-                </div>
-              </div>
+              </Collapsible>
 
-              {/* Column Mappings */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">🗂</span><span className="settings-section-title">Column Mappings</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="🗂" title="Column Mappings">
                   <div className="settings-desc">
                     Map each field to its exact column header from your report. Once saved, files load straight to the task list without a mapping screen. {columns.length === 0 && <span style={{color:"#f59e0b"}}>Load a work list file first to see available columns.</span>}
                   </div>
@@ -2368,13 +2373,9 @@ export default function App() {
                       </button>
                     )}
                   </div>
-                </div>
-              </div>
+              </Collapsible>
 
-              {/* Updated Criticality Settings */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">⚡</span><span className="settings-section-title">Updated Criticality</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="⚡" title="Updated Criticality">
                   <div className="settings-desc">
                     Updated Criticality starts from the task's original Criticality Ind, then escalates upward based on how many duplicate (linked) tasks share the same Task ID.
                     The logic is: <strong>every N linked tasks = +1 severity level</strong>, up to a maximum number of levels.
@@ -2457,23 +2458,12 @@ export default function App() {
                       })}
                     </div>
                   </>)}
-                </div>
-              </div>
+              </Collapsible>
 
               {/* Save & Publish shared configuration */}
-              <div className="settings-section" style={{borderColor:"var(--brand)"}}>
-                <div className="settings-section-hdr"><span className="settings-section-icon">☁</span><span className="settings-section-title">Publish Configuration</span></div>
-                <div className="settings-section-body">
-                  <div className="settings-desc">Saves the current admin settings (column mappings, criticality rules, file locations, location groups) to the cloud. Every device fetches and applies it the next time it opens — themes and each tech's grouping stay personal.</div>
-                  <button className="btn-primary" style={{alignSelf:"flex-start"}} onClick={publishConfig}>☁ Save &amp; Publish Configuration</button>
-                </div>
-              </div>
               </>)}
 
-              {/* Theme / Appearance */}
-              <div className="settings-section">
-                <div className="settings-section-hdr"><span className="settings-section-icon">🎨</span><span className="settings-section-title">Appearance</span></div>
-                <div className="settings-section-body">
+              <Collapsible icon="🎨" title="Appearance" defaultOpen>
                   <div className="settings-desc">Choose a colour theme for the app. Changes apply instantly.</div>
                   <div className="theme-grid">
                     {Object.entries(THEMES).map(([key, theme]) => (
@@ -2493,8 +2483,7 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                </div>
-              </div>
+              </Collapsible>
 
               <div style={{paddingBottom:24}}/>
             </div>
