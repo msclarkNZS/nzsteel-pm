@@ -1052,6 +1052,10 @@ const css = `
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 `;
 // ─── Collapsible settings section ──────────────────────────────────────────────
+// Build stamp injected at build time by Vite (see vite.config.js define). Falls
+// back to "dev" during local validation when the define isn't present.
+const APP_BUILD = (typeof __APP_BUILD__ !== "undefined") ? __APP_BUILD__ : "dev";
+
 function Collapsible({ icon, title, defaultOpen = false, accent = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -2162,9 +2166,15 @@ export default function App() {
             <div className="settings-inner">
               <div className="settings-title">Settings</div>
 
-              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text-dim)",background:"var(--bg-mid)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px"}}>
-                <span style={{fontFamily:"'Roboto Condensed',sans-serif",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--text-faint)",fontSize:11}}>Config&nbsp;version</span>
-                <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{configVersion ? new Date(configVersion).toLocaleString() : "— none received yet —"}</span>
+              <div style={{display:"flex",flexDirection:"column",gap:6,fontSize:13,color:"var(--text-dim)",background:"var(--bg-mid)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontFamily:"'Roboto Condensed',sans-serif",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--text-faint)",fontSize:11,minWidth:96}}>App&nbsp;build</span>
+                  <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{APP_BUILD}</span>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontFamily:"'Roboto Condensed',sans-serif",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--text-faint)",fontSize:11,minWidth:96}}>Config&nbsp;version</span>
+                  <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{configVersion ? new Date(configVersion).toLocaleString() : "— none received yet —"}</span>
+                </div>
               </div>
 
               <SupervisorPanel onToast={showToast} onAuthChange={(u)=>setIsAdmin(!!u)} />
