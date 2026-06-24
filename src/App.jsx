@@ -1127,6 +1127,7 @@ export default function App() {
   // Admin (= supervisor login) gates the full Settings + config publishing
   const [isAdmin, setIsAdmin] = useState(false);
   const configApplied = useRef(false);
+  const [configVersion, setConfigVersion] = useState(null); // applied config stamp
 
   // Worklist freshness (new-worklist-available prompt) + technician roster
   const [loadedWorklist, setLoadedWorklist]   = useState(null); // { name, updatedAt }
@@ -1163,9 +1164,9 @@ export default function App() {
   // Auto-save
   useEffect(() => {
     if (tasks.length === 0) return;
-    saveSession({ tasks, fieldMap, columns, rawData, settings, descMap, notifications, loadedWorklist });
+    saveSession({ tasks, fieldMap, columns, rawData, settings, descMap, notifications, loadedWorklist, configVersion });
     setLastSaved(new Date().toLocaleTimeString());
-  }, [tasks, settings, fieldMap, columns, rawData, descMap, notifications, loadedWorklist]);
+  }, [tasks, settings, fieldMap, columns, rawData, descMap, notifications, loadedWorklist, configVersion]);
 
   // Restore session
   useEffect(() => {
@@ -1177,6 +1178,7 @@ export default function App() {
         if (saved.settings) setSettings(s => ({ ...s, ...saved.settings }));
         if (saved.notifications) setNotifications(saved.notifications);
         if (saved.loadedWorklist) setLoadedWorklist(saved.loadedWorklist);
+        if (saved.configVersion) setConfigVersion(saved.configVersion);
         if (saved.descMap && Object.keys(saved.descMap).length > 0) {
           setDescMap(saved.descMap); setDescMapLoaded(true); setDescMapCount(Object.keys(saved.descMap).length);
         }
@@ -1227,9 +1229,20 @@ export default function App() {
     if (configApplied.current || netStatus !== "online") return;
     configApplied.current = true;
     getConfig().then(cfg => {
-      if (cfg) setSettings(s => ({ ...s, ...cfg, theme: s.theme, groupConfig: s.groupConfig }));
+      if (cfg) {
+        setSettings(s => ({ ...s, ...cfg, theme: s.theme, groupConfig: s.groupConfig }));
+        if (cfg.__version) setConfigVersion(cfg.__version);
+      }
     }).catch(() => {});
   }, [netStatus]);
+
+  // Keep the active field map in step with the (possibly just-synced) column
+  // mappings whenever a worklist is loaded — so a published mapping change shows
+  // immediately, without needing to reload the file. Skipped on the map screen.
+  useEffect(() => {
+    if (!columns.length || screen === "map") return;
+    setFieldMap(buildFieldMap(columns, settings.columnMappings));
+  }, [settings.columnMappings, columns]);
 
   // Keys that belong to the shared admin config (everything except per-device
   // theme and grouping).
@@ -1238,10 +1251,13 @@ export default function App() {
     "exportAllFilename","azureClientId","azureTenantId","azureRedirectUri","locationGroups"];
 
   const publishConfig = async () => {
-    const cfg = {};
+    const cfg = { __version: new Date().toISOString() };
     CONFIG_KEYS.forEach(k => { if (settings[k] !== undefined) cfg[k] = settings[k]; });
-    try { await saveConfig(cfg); showToast("✓ Configuration published to all devices"); }
-    catch (e) { showToast("❌ Publish failed: " + (e.message || e)); }
+    try {
+      await saveConfig(cfg);
+      setConfigVersion(cfg.__version);
+      showToast("✓ Configuration published — version " + new Date(cfg.__version).toLocaleString());
+    } catch (e) { showToast("❌ Publish failed: " + (e.message || e)); }
   };
 
   // MSAL init
@@ -1609,7 +1625,7 @@ export default function App() {
   };
   // Default state = collapsed (undefined). Toggle: undefined/true → false (open), false → true (collapsed)
   const toggleGroup = (key) => setCollapsedGroups(c => ({ ...c, [key]: c[key] !== false ? false : true }));
-  const setMapField = (key, col) => setFieldMap(m => ({ ...m, [key]: col }));
+  const setMapField = (key, col) => { setFieldMap(m => ({ ...m, [key]: col })); updateColMapping(key, col); };
 
   function groupStats(items) {
     const flat = [];
@@ -2044,6 +2060,11 @@ export default function App() {
           <div className="settings-screen">
             <div className="settings-inner">
               <div className="settings-title">Settings</div>
+
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text-dim)",background:"var(--bg-mid)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px"}}>
+                <span style={{fontFamily:"'Roboto Condensed',sans-serif",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--text-faint)",fontSize:11}}>Config&nbsp;version</span>
+                <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{configVersion ? new Date(configVersion).toLocaleString() : "— none received yet —"}</span>
+              </div>
 
               <SupervisorPanel onToast={showToast} onAuthChange={(u)=>setIsAdmin(!!u)} />
 
