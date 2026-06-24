@@ -6,6 +6,14 @@ import { VitePWA } from "vite-plugin-pwa";
 // set base to "/repo-name/". For root hosting leave it as "/".
 export default defineConfig({
   base: "/nzsteel-pm/",
+  // Build stamp shown in Settings so you can confirm every device is on the same
+  // deploy. GitHub Actions sets GITHUB_SHA; build time is added too.
+  define: {
+    __APP_BUILD__: JSON.stringify(
+      (process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) + " · " : "") +
+      new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"
+    )
+  },
   plugins: [
     react(),
     VitePWA({
