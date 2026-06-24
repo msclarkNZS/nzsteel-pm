@@ -4,7 +4,7 @@ import { saveSession, loadSession, clearSession, saveAuth, loadAuth, clearAuth }
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
-import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig } from "./sync.js";
+import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig, pushProgress, pullProgress } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
 function injectMsal(callback) {
@@ -1106,6 +1106,7 @@ export default function App() {
   // Network
   const [netStatus, setNetStatus] = useState("checking");
   const [lastSaved, setLastSaved] = useState(null);
+  const [lastSync, setLastSync]   = useState(null);
   const [toast, setToast]         = useState(null);
   const [fetching, setFetching]   = useState(false);
 
@@ -1612,6 +1613,58 @@ export default function App() {
   const updateManyTasks = (ids, patch) =>
     setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, ...patch } : t));
 
+  // ── Merge-on-pull multi-device sync ─────────────────────────────────────────
+  // Each device shares its progress for the current worklist; on reconnect and
+  // every ~5 min while online, devices pull everyone's progress and merge with
+  // "most recent action wins". Relies on both devices having loaded the SAME
+  // worklist (task identity = row index).
+  const tasksRef = useRef(tasks); tasksRef.current = tasks;
+  const syncBusyRef = useRef(false);
+
+  const syncProgress = useCallback(async () => {
+    const wl = loadedWorklist?.name;
+    if (netStatus !== "online" || !wl || syncBusyRef.current) return;
+    syncBusyRef.current = true;
+    try {
+      const base = tasksRef.current;
+      // Push my actioned tasks
+      const mine = {};
+      base.forEach(t => { if (t.actionedAt) mine[t.id] = { s: t.status, c: t.comment || "", t: t.actionedAt, by: t.actionedBy || "" }; });
+      await pushProgress(wl, techName || "tech", { worklist: wl, by: techName || "tech", updatedAt: new Date().toISOString(), tasks: mine });
+      // Pull everyone's and merge (most recent wins)
+      const remote = await pullProgress(wl);
+      const byId = new Map(base.map(t => [t.id, t]));
+      let changes = 0;
+      remote.forEach(rp => {
+        if (rp.by && techName && rp.by === techName) return; // skip my own file
+        Object.entries(rp.tasks || {}).forEach(([idStr, r]) => {
+          const id = Number(idStr); const local = byId.get(id);
+          if (!local || !r || !r.t) return;
+          if (r.t > (local.actionedAt || "") &&
+              (local.status !== r.s || (local.comment || "") !== (r.c || "") || (local.actionedAt || "") !== r.t)) {
+            byId.set(id, { ...local, status: r.s, comment: r.c || "", actionedAt: r.t, actionedBy: r.by || "" });
+            changes++;
+          }
+        });
+      });
+      if (changes) {
+        setTasks([...byId.values()].sort((a, b) => a.id - b.id));
+        showToast(`🔄 Synced — ${changes} task${changes !== 1 ? "s" : ""} updated from colleagues`);
+      }
+      setLastSync(new Date().toLocaleTimeString());
+    } catch { /* quiet — try again next cycle */ }
+    finally { syncBusyRef.current = false; }
+  }, [netStatus, loadedWorklist, techName]);
+
+  // Run on reconnect / worklist change, then every 5 minutes while online.
+  const syncRef = useRef(syncProgress); syncRef.current = syncProgress;
+  useEffect(() => {
+    if (netStatus !== "online" || !loadedWorklist?.name) return;
+    syncRef.current();
+    const iv = setInterval(() => syncRef.current(), 5 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [netStatus, loadedWorklist?.name]);
+
   const openGroup  = (g) => { setActiveGroupId(g.id); setPanelComment(g.comment); };
   const closePanel = () => setActiveGroupId(null);
 
@@ -1624,7 +1677,7 @@ export default function App() {
 
   const resetGroupTask = () => {
     const group = groupedTasks.find(g => g.id === activeGroupId); if (!group) return;
-    updateManyTasks([group.id, ...group.children], { status: STATUS.PENDING, comment: "", actionedAt: "", actionedBy: "" });
+    updateManyTasks([group.id, ...group.children], { status: STATUS.PENDING, comment: "", actionedAt: new Date().toISOString(), actionedBy: techName });
     setPanelComment(""); setActiveGroupId(null);
   };
 
@@ -2118,7 +2171,7 @@ export default function App() {
 
               {isAdmin && (<>
 
-              <Collapsible icon="☁" title="Publish Configuration" accent defaultOpen>
+              <Collapsible icon="☁" title="Publish Configuration" accent>
                 <div className="settings-desc">Saves the current admin settings (column mappings, criticality rules, file locations, location groups) to the cloud. Every device fetches and applies it the next time it opens — themes and each tech's grouping stay personal.</div>
                 <button className="btn-primary" style={{alignSelf:"flex-start"}} onClick={publishConfig}>☁ Save &amp; Publish Configuration</button>
               </Collapsible>
@@ -2276,7 +2329,7 @@ export default function App() {
                   )}
               </Collapsible>
 
-              <Collapsible icon="📍" title="Location Groups" defaultOpen>
+              <Collapsible icon="📍" title="Location Groups">
                   <div className="settings-desc">Group Level-1 areas under a name (e.g. RMH, KILNS, MELTERS). Technicians get an area-group selector on the main screen. Remember to <strong>Save &amp; Publish Configuration</strong> below to send changes to all devices.</div>
                   {availableAreas.length === 0 && (
                     <div className="settings-desc" style={{color:"#fbbf24"}}>No areas available yet — publish the location (IH06) file or load a worklist so the app knows the area list.</div>
@@ -2463,7 +2516,7 @@ export default function App() {
               {/* Save & Publish shared configuration */}
               </>)}
 
-              <Collapsible icon="🎨" title="Appearance" defaultOpen>
+              <Collapsible icon="🎨" title="Appearance">
                   <div className="settings-desc">Choose a colour theme for the app. Changes apply instantly.</div>
                   <div className="theme-grid">
                     {Object.entries(THEMES).map(([key, theme]) => (
@@ -2747,6 +2800,7 @@ export default function App() {
 
               <SyncPanel
                 techName={techName}
+                lastSync={lastSync}
                 onLoadWorklist={(file, meta) => { processFile(file); setLoadedWorklist(meta || null); setWorklistAlertDismissed(false); }}
                 getResultFiles={getResultFiles}
               />

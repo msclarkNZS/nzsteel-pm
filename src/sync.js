@@ -144,7 +144,7 @@ export async function deleteResultFolder(folder) {
   if (error) throw error;
 }
 
-// ── Shared admin configuration (config.json) ──────────────────────────────────
+// ── Shared admin configuration (config.json) ───────────────────────────────────
 // Admin publishes one config that every device fetches and applies on startup
 // (column mappings, criticality rules, file settings, location groups). Themes
 // and per-device grouping are NOT included — they stay local.
@@ -169,7 +169,38 @@ export async function saveConfig(config) {
   if (error) throw error;
 }
 
-// ── Technician roster (light user management) ─────────────────────────────────
+// ── Live-ish progress sharing (merge-on-pull multi-device sync) ───────────────
+// Each device writes its own progress JSON for a worklist; devices pull all of
+// them and merge "most recent action wins". Needs a separate `progress` bucket
+// where technicians (anon) can both read and write (see setup notes).
+const PROGRESS_BUCKET = "progress";
+const slug = (s) => String(s || "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "x";
+
+export async function pushProgress(worklistName, techName, progress) {
+  const path = `${slug(worklistName)}/${slug(techName)}.json`;
+  const blob = new Blob([JSON.stringify(progress)], { type: "application/json" });
+  const { error } = await supabase.storage
+    .from(PROGRESS_BUCKET)
+    .upload(path, blob, { upsert: true, contentType: "application/json" });
+  if (error) throw error;
+}
+
+export async function pullProgress(worklistName) {
+  const folder = slug(worklistName);
+  const { data, error } = await supabase.storage.from(PROGRESS_BUCKET).list(folder, { limit: 200 });
+  if (error || !data) return [];
+  const out = [];
+  for (const f of data) {
+    if (!f.name || !f.name.endsWith(".json")) continue;
+    try {
+      const { data: blob, error: e2 } = await supabase.storage.from(PROGRESS_BUCKET).download(`${folder}/${f.name}`);
+      if (e2 || !blob) continue;
+      const parsed = JSON.parse(await blob.text());
+      if (parsed && typeof parsed === "object") out.push(parsed);
+    } catch { /* skip bad file */ }
+  }
+  return out;
+}
 // Stored as roster.json in the worklists bucket, which already allows anon read
 // (so the sign-in screen can offer a name dropdown) and supervisor-only write.
 const ROSTER_KEY = "roster.json";
