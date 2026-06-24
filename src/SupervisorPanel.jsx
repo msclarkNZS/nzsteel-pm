@@ -23,8 +23,9 @@ function parseFolder(folder) {
   return { tech, when };
 }
 
-export default function SupervisorPanel({ onToast }) {
+export default function SupervisorPanel({ onToast, onAuthChange }) {
   const note = (m) => onToast ? onToast(m) : null;
+  const reportAuth = (u) => { setSupervisor(u); if (onAuthChange) onAuthChange(u); };
 
   const [supervisor, setSupervisor] = useState(null);
   const [email, setEmail] = useState("");
@@ -35,20 +36,20 @@ export default function SupervisorPanel({ onToast }) {
   const [newName, setNewName] = useState("");
   const [rosterDirty, setRosterDirty] = useState(false);
 
-  useEffect(() => { getSupervisor().then(setSupervisor).catch(() => setSupervisor(null)); }, []);
+  useEffect(() => { getSupervisor().then(reportAuth).catch(() => reportAuth(null)); }, []);
   useEffect(() => { if (supervisor) { refreshFolders(); getRoster().then(setRoster).catch(() => {}); } }, [supervisor]);
 
   const handleSignIn = async () => {
     setBusy("auth");
     try {
       const user = await signInSupervisor(email.trim(), pwd);
-      setSupervisor(user); setPwd("");
+      reportAuth(user); setPwd("");
       note("✓ Supervisor mode");
     } catch (e) { note("❌ Sign-in failed: " + (e.message || e)); }
     setBusy("");
   };
 
-  const handleSignOut = async () => { await signOutSupervisor(); setSupervisor(null); setFolders([]); note("Signed out of supervisor"); };
+  const handleSignOut = async () => { await signOutSupervisor(); reportAuth(null); setFolders([]); note("Signed out of supervisor"); };
 
   const handlePublish = async (e) => {
     const file = e.target.files[0]; if (!file) return;
