@@ -4,7 +4,7 @@ import { saveSession, loadSession, clearSession, saveAuth, loadAuth, clearAuth }
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
-import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile } from "./sync.js";
+import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
 function injectMsal(callback) {
@@ -1124,6 +1124,10 @@ export default function App() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [groupingOpen, setGroupingOpen] = useState(false);
 
+  // Admin (= supervisor login) gates the full Settings + config publishing
+  const [isAdmin, setIsAdmin] = useState(false);
+  const configApplied = useRef(false);
+
   // Worklist freshness (new-worklist-available prompt) + technician roster
   const [loadedWorklist, setLoadedWorklist]   = useState(null); // { name, updatedAt }
   const [latestWorklist, setLatestWorklist]   = useState(null); // { name, updatedAt }
@@ -1216,6 +1220,29 @@ export default function App() {
     getLatestWorklist().then(latest => { if (!cancelled) setLatestWorklist(latest); }).catch(() => {});
     return () => { cancelled = true; };
   }, [screen, netStatus]);
+
+  // Apply the shared admin config once on first online load. Theme and grouping
+  // stay local (per-device), so we preserve them when merging.
+  useEffect(() => {
+    if (configApplied.current || netStatus !== "online") return;
+    configApplied.current = true;
+    getConfig().then(cfg => {
+      if (cfg) setSettings(s => ({ ...s, ...cfg, theme: s.theme, groupConfig: s.groupConfig }));
+    }).catch(() => {});
+  }, [netStatus]);
+
+  // Keys that belong to the shared admin config (everything except per-device
+  // theme and grouping).
+  const CONFIG_KEYS = ["columnMappings","updatedCritSettings","sourceUrl","sourceFilename",
+    "exportUrl","exportCompletedFilename","exportCompletedLinkedFilename","exportNotDoneFilename",
+    "exportAllFilename","azureClientId","azureTenantId","azureRedirectUri","locationGroups"];
+
+  const publishConfig = async () => {
+    const cfg = {};
+    CONFIG_KEYS.forEach(k => { if (settings[k] !== undefined) cfg[k] = settings[k]; });
+    try { await saveConfig(cfg); showToast("✓ Configuration published to all devices"); }
+    catch (e) { showToast("❌ Publish failed: " + (e.message || e)); }
+  };
 
   // MSAL init
   useEffect(() => {
@@ -2018,8 +2045,9 @@ export default function App() {
             <div className="settings-inner">
               <div className="settings-title">Settings</div>
 
-              <SupervisorPanel onToast={showToast} />
+              <SupervisorPanel onToast={showToast} onAuthChange={(u)=>setIsAdmin(!!u)} />
 
+              {isAdmin && (<>
               {/* Azure SSO */}
               <div className="settings-section">
                 <div className="settings-section-hdr"><span className="settings-section-icon">🔐</span><span className="settings-section-title">Microsoft SSO (Azure)</span></div>
@@ -2338,6 +2366,16 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Save & Publish shared configuration */}
+              <div className="settings-section" style={{borderColor:"var(--brand)"}}>
+                <div className="settings-section-hdr"><span className="settings-section-icon">☁</span><span className="settings-section-title">Publish Configuration</span></div>
+                <div className="settings-section-body">
+                  <div className="settings-desc">Saves the current admin settings (column mappings, criticality rules, file locations, location groups) to the cloud. Every device fetches and applies it the next time it opens — themes and each tech's grouping stay personal.</div>
+                  <button className="btn-primary" style={{alignSelf:"flex-start"}} onClick={publishConfig}>☁ Save &amp; Publish Configuration</button>
+                </div>
+              </div>
+              </>)}
+
               {/* Theme / Appearance */}
               <div className="settings-section">
                 <div className="settings-section-hdr"><span className="settings-section-icon">🎨</span><span className="settings-section-title">Appearance</span></div>
@@ -2364,19 +2402,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Data */}
-              <div className="settings-section" style={{borderColor:"#2a0a0a"}}>
-                <div className="settings-section-hdr" style={{background:"#200808"}}>
-                  <span className="settings-section-icon">⚠️</span>
-                  <span className="settings-section-title" style={{color:"#f87171"}}>Data</span>
-                </div>
-                <div className="settings-section-body">
-                  <button className="btn-danger" onClick={()=>{if(window.confirm("Clear session data?")){clearSession();setTasks([]);setRawData([]);setColumns([]);setFieldMap({});setScreen("upload");showToast("Session cleared");}}}>
-                    Clear Session Data
-                  </button>
-                  <div className="settings-desc">Clears the work list. Settings and column mappings are kept. Location descriptions are kept.</div>
-                </div>
-              </div>
               <div style={{paddingBottom:24}}/>
             </div>
           </div>
