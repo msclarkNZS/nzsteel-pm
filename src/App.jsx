@@ -1679,6 +1679,26 @@ export default function App() {
     return () => clearInterval(iv);
   }, [netStatus, loadedWorklist?.name]);
 
+  // Push promptly (~2s) after any local task change, so a tech's update uploads
+  // while the app is still in front — phones suspend background timers, so the
+  // 5-minute cycle alone can miss changes made right before switching away.
+  const syncDebounceRef = useRef(null);
+  useEffect(() => {
+    if (netStatus !== "online" || !loadedWorklist?.name) return;
+    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+    syncDebounceRef.current = setTimeout(() => syncRef.current(), 2000);
+    return () => { if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current); };
+  }, [tasks, netStatus, loadedWorklist?.name]);
+
+  // Sync when the app returns to the foreground (covers catching up after the
+  // phone was backgrounded and its timer was suspended).
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") syncRef.current(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => { document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
+  }, []);
+
   const openGroup  = (g) => { setActiveGroupId(g.id); setPanelComment(g.comment); };
   const closePanel = () => setActiveGroupId(null);
 
