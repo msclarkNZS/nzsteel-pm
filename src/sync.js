@@ -26,7 +26,8 @@ export async function checkOnline() {
 const WORKLIST_EXTS = [".xlsx", ".xls", ".csv"];
 // Reserved names kept in the worklists bucket but NOT shown as selectable worklists.
 const FLOC_KEY = "floc-source.xlsx";
-const RESERVED = ["roster.json", FLOC_KEY];
+const CONFIG_KEY = "config.json";
+const RESERVED = ["roster.json", FLOC_KEY, CONFIG_KEY];
 function isWorklistFile(name) {
   const n = (name || "").toLowerCase();
   if (RESERVED.includes(n)) return false;
@@ -140,6 +141,31 @@ export async function deleteResultFolder(folder) {
   const paths = files.map(f => f.path);
   if (paths.length === 0) return;
   const { error } = await supabase.storage.from(RESULTS_BUCKET).remove(paths);
+  if (error) throw error;
+}
+
+// ── Shared admin configuration (config.json) ──────────────────────────────────
+// Admin publishes one config that every device fetches and applies on startup
+// (column mappings, criticality rules, file settings, location groups). Themes
+// and per-device grouping are NOT included — they stay local.
+export async function getConfig() {
+  try {
+    const { data, error } = await supabase.storage.from(WORKLISTS_BUCKET).download(CONFIG_KEY);
+    if (error || !data) return null;
+    const text = await data.text();
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Supervisor (admin) only.
+export async function saveConfig(config) {
+  const blob = new Blob([JSON.stringify(config)], { type: "application/json" });
+  const { error } = await supabase.storage
+    .from(WORKLISTS_BUCKET)
+    .upload(CONFIG_KEY, blob, { upsert: true, contentType: "application/json" });
   if (error) throw error;
 }
 
