@@ -1056,6 +1056,16 @@ const css = `
 // back to "dev" during local validation when the define isn't present.
 const APP_BUILD = (typeof __APP_BUILD__ !== "undefined") ? __APP_BUILD__ : "dev";
 
+// Stable per-device id so two devices (even signed in as the same name) each get
+// their own progress file and correctly merge each other's updates.
+const DEVICE_ID = (() => {
+  try {
+    let id = localStorage.getItem("nzsteel-device-id");
+    if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "d" + Date.now() + Math.random().toString(36).slice(2)); localStorage.setItem("nzsteel-device-id", id); }
+    return id;
+  } catch { return "d" + Math.random().toString(36).slice(2); }
+})();
+
 function Collapsible({ icon, title, defaultOpen = false, accent = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -1634,13 +1644,13 @@ export default function App() {
       // Push my actioned tasks
       const mine = {};
       base.forEach(t => { if (t.actionedAt) mine[t.id] = { s: t.status, c: t.comment || "", t: t.actionedAt, by: t.actionedBy || "" }; });
-      await pushProgress(wl, techName || "tech", { worklist: wl, by: techName || "tech", updatedAt: new Date().toISOString(), tasks: mine });
+      await pushProgress(wl, DEVICE_ID, { worklist: wl, by: techName || "tech", deviceId: DEVICE_ID, updatedAt: new Date().toISOString(), tasks: mine });
       // Pull everyone's and merge (most recent wins)
       const remote = await pullProgress(wl);
       const byId = new Map(base.map(t => [t.id, t]));
       let changes = 0;
       remote.forEach(rp => {
-        if (rp.by && techName && rp.by === techName) return; // skip my own file
+        if (rp.deviceId && rp.deviceId === DEVICE_ID) return; // skip only my own file
         Object.entries(rp.tasks || {}).forEach(([idStr, r]) => {
           const id = Number(idStr); const local = byId.get(id);
           if (!local || !r || !r.t) return;
