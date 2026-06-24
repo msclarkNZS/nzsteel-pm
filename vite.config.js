@@ -11,7 +11,7 @@ export default defineConfig({
   define: {
     __APP_BUILD__: JSON.stringify(
       (process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) + " · " : "") +
-      new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"
+      new Date().toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) + " NZ"
     )
   },
   plugins: [
