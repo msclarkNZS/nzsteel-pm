@@ -361,6 +361,7 @@ const DEFAULT_SETTINGS = {
     criticalityInd: "", interval: "", workProcedure: "", order: "",
   },
   groupConfig: [],
+  locationGroups: [],
   theme: "nzsteel-dark",
   // Updated Criticality escalation rules
   updatedCritSettings: {
@@ -1107,6 +1108,7 @@ export default function App() {
   const [hierL1, setHierL1]                 = useState("");
   const [hierL2, setHierL2]                 = useState("");
   const [hierL3, setHierL3]                 = useState("");
+  const [locationGroupFilter, setLocationGroupFilter] = useState(""); // selected area-group id
 
   // Grouping
   const [collapsedGroups, setCollapsedGroups] = useState({});
@@ -1507,6 +1509,7 @@ export default function App() {
 
   const filtered = useMemo(() => {
     const lc = s => s.toLowerCase();
+    const grp = locationGroupFilter ? (settings.locationGroups||[]).find(x=>x.id===locationGroupFilter) : null;
     return groupedTasks.filter(g => {
       if (statusFilter !== "all" && g.status !== statusFilter) return false;
       if (searchFloc && !lc(fv(g,"flocDesc")).includes(lc(searchFloc))) return false;
@@ -1521,12 +1524,32 @@ export default function App() {
       if (dropUpdatedCriticality && getUpdatedCriticality(g).label !== dropUpdatedCriticality) return false;
       if (dropCondition && fv(g,"systemCondition") !== dropCondition) return false;
       if (dropInterval && fv(g,"interval") !== dropInterval) return false;
+      if (grp && grp.areas?.length) {
+        const key = parseFlocLevels(fv(g,"functLocation")).slice(0,2).join("/");
+        if (!grp.areas.includes(key)) return false;
+      }
       if (!matchesHier(g)) return false;
       return true;
     });
   }, [groupedTasks,statusFilter,searchFloc,searchOpText,searchLimit,searchAction,
       searchProcedure,searchOrder,dropLubricant,dropRoute,dropCriticality,dropUpdatedCriticality,
-      dropCondition,dropInterval,matchesHier,fv,getUpdatedCriticality]);
+      dropCondition,dropInterval,locationGroupFilter,settings.locationGroups,matchesHier,fv,getUpdatedCriticality]);
+
+  // All Level-1 areas the app knows about (from the IH06 file and any loaded
+  // worklist), for the admin's location-group editor. Keyed by L1 floc (NZ/054).
+  const availableAreas = useMemo(() => {
+    const m = new Map();
+    Object.keys(descMap || {}).forEach(k => {
+      const parts = k.split("/").filter(Boolean);
+      if (parts.length === 2) m.set(k, descMap[k]);
+    });
+    const col = fieldMap.functLocation;
+    if (col) tasks.forEach(t => {
+      const parts = parseFlocLevels(t.raw[col]);
+      if (parts.length >= 2) { const key = parts.slice(0,2).join("/"); if (!m.has(key)) m.set(key, descMap[key] || parts[1]); }
+    });
+    return [...m.entries()].map(([key,label]) => ({ key, label: label || key })).sort((a,b)=>a.key.localeCompare(b.key));
+  }, [descMap, tasks, fieldMap]);
 
   const displayTree = useMemo(() => {
     if (!settings.groupConfig?.length) return null;
@@ -1608,6 +1631,13 @@ export default function App() {
   const activeGroup = groupedTasks.find(g => g.id === activeGroupId) || null;
 
   const updateSetting    = (key, val) => setSettings(s => ({ ...s, [key]: val }));
+
+  // Location-group editor helpers (admin)
+  const addLocationGroup    = () => updateSetting("locationGroups", [...(settings.locationGroups||[]), { id: "g"+Date.now(), name: "New group", areas: [] }]);
+  const removeLocationGroup = (id) => updateSetting("locationGroups", (settings.locationGroups||[]).filter(g=>g.id!==id));
+  const renameLocationGroup = (id, name) => updateSetting("locationGroups", (settings.locationGroups||[]).map(g=>g.id===id?{...g,name}:g));
+  const addAreaToGroup      = (id, key) => { if(!key) return; updateSetting("locationGroups", (settings.locationGroups||[]).map(g=>g.id===id && !g.areas.includes(key)?{...g,areas:[...g.areas,key]}:g)); };
+  const removeAreaFromGroup = (id, key) => updateSetting("locationGroups", (settings.locationGroups||[]).map(g=>g.id===id?{...g,areas:g.areas.filter(a=>a!==key)}:g));
   const updateColMapping = (key, val) => setSettings(s => ({ ...s, columnMappings: { ...s.columnMappings, [key]: val } }));
 
   const addGroupLevel = () => {
@@ -2234,6 +2264,49 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Location Groups */}
+              <div className="settings-section">
+                <div className="settings-section-hdr"><span className="settings-section-icon">📍</span><span className="settings-section-title">Location Groups</span></div>
+                <div className="settings-section-body">
+                  <div className="settings-desc">Group Level-1 areas under a name (e.g. RMH, KILNS, MELTERS). Technicians get an area-group selector on the main screen. Remember to <strong>Save &amp; Publish Configuration</strong> below to send changes to all devices.</div>
+                  {availableAreas.length === 0 && (
+                    <div className="settings-desc" style={{color:"#fbbf24"}}>No areas available yet — publish the location (IH06) file or load a worklist so the app knows the area list.</div>
+                  )}
+                  {(settings.locationGroups||[]).map(group => {
+                    const inGroup = new Set(group.areas);
+                    const remaining = availableAreas.filter(a => !inGroup.has(a.key));
+                    return (
+                      <div key={group.id} style={{background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:8,padding:12,display:"flex",flexDirection:"column",gap:10}}>
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <input className="settings-input" style={{flex:1,fontWeight:600}} value={group.name} onChange={e=>renameLocationGroup(group.id, e.target.value)} placeholder="Group name"/>
+                          <button className="btn-exp red" style={{minHeight:36,fontSize:12,padding:"6px 10px",flexShrink:0}} onClick={()=>removeLocationGroup(group.id)}>Remove</button>
+                        </div>
+                        {group.areas.length > 0 ? (
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {group.areas.map(key => {
+                              const a = availableAreas.find(x=>x.key===key);
+                              return (
+                                <span key={key} style={{display:"flex",alignItems:"center",gap:6,background:"var(--brand-dim)",border:"1px solid var(--brand)",color:"var(--accent)",borderRadius:6,padding:"5px 9px",fontSize:13}}>
+                                  <span><strong>{key}</strong>{a?` — ${a.label}`:""}</span>
+                                  <button onClick={()=>removeAreaFromGroup(group.id, key)} style={{background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontSize:14,lineHeight:1,padding:0}}>✕</button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : <div className="settings-desc" style={{margin:0}}>No areas assigned yet.</div>}
+                        {remaining.length > 0 && (
+                          <select className="settings-input" value="" onChange={e=>{addAreaToGroup(group.id, e.target.value); e.target.value="";}}>
+                            <option value="">+ Add an area…</option>
+                            {remaining.map(a => <option key={a.key} value={a.key}>{a.key}{a.label?` — ${a.label}`:""}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button className="group-add-btn" onClick={addLocationGroup}>+ Add location group</button>
+                </div>
+              </div>
+
               {/* Column Mappings */}
               <div className="settings-section">
                 <div className="settings-section-hdr"><span className="settings-section-icon">🗂</span><span className="settings-section-title">Column Mappings</span></div>
@@ -2467,6 +2540,12 @@ export default function App() {
                   onClick={()=>{setGroupingOpen(o=>!o);setFiltersOpen(false);}}>
                   {groupingOpen?"▴":"▾"} Grouping{settings.groupConfig.length>0?` (${settings.groupConfig.length})`:""}
                 </button>
+                {(settings.locationGroups||[]).length>0 && (
+                  <select className={`f-sel${locationGroupFilter?" active":""}`} value={locationGroupFilter} onChange={e=>setLocationGroupFilter(e.target.value)} title="Area group">
+                    <option value="">📍 All areas</option>
+                    {settings.locationGroups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                )}
                 {hasFilter && <button className="clear-all" onClick={resetFilters}>✕ Clear</button>}
                 <button className={`f-status-btn${selectMode?" active":""}`} style={{border:"1px solid var(--border)",borderRadius:5}}
                   onClick={()=> selectMode ? exitSelectMode() : setSelectMode(true)}>
