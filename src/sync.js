@@ -181,7 +181,7 @@ export async function pushProgress(worklistName, fileKey, progress) {
   const blob = new Blob([JSON.stringify(progress)], { type: "application/json" });
   const { error } = await supabase.storage
     .from(PROGRESS_BUCKET)
-    .upload(path, blob, { upsert: true, contentType: "application/json" });
+    .upload(path, blob, { upsert: true, contentType: "application/json", cacheControl: "0" });
   if (error) throw error;
 }
 
