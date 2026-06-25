@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { listWorklists, downloadWorklist, pushResult } from "./sync.js";
 
-export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync, syncError, syncInfo, deviceId }) {
+export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync, syncError, syncInfo, deviceId, showDiagnostics }) {
   const [open, setOpen] = useState(false);
   const [worklists, setWorklists] = useState([]);
   const [busy, setBusy] = useState("");
@@ -84,7 +84,7 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, la
                   ⚠ Sync {syncError}
                 </div>
               )}
-              <details style={{ fontSize: 11, color: "var(--text-faint)", background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px" }}>
+              <details style={{ fontSize: 11, color: "var(--text-faint)", background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", display: showDiagnostics ? "block" : "none" }}>
                 <summary style={{ cursor: "pointer", color: "var(--text-dim)" }}>Sync details</summary>
                 <div style={{ fontFamily: "monospace", lineHeight: 1.6, marginTop: 6, wordBreak: "break-word" }}>
                   <div>This device: {String(deviceId || "?").slice(0, 8)}</div>
