@@ -96,6 +96,13 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, la
                     ? syncInfo.others.map((o, i) => <div key={i}>· {o}</div>)
                     : <div>· (none)</div>}
                   <div>Merge: {syncInfo?.breakdown || "—"}</div>
+                  {syncInfo?.newest && (
+                    <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border)" }}>
+                      <div>Newest from others — task id {syncInfo.newest.id} (by {syncInfo.newest.by}):</div>
+                      <div>· remote: {syncInfo.newest.remoteStatus} @ {syncInfo.newest.remoteT}</div>
+                      <div>· local : {syncInfo.newest.localStatus} @ {syncInfo.newest.localT}</div>
+                    </div>
+                  )}
                 </div>
               </details>
 
