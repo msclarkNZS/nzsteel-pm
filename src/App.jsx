@@ -1122,6 +1122,7 @@ export default function App() {
   const [lastSaved, setLastSaved] = useState(null);
   const [lastSync, setLastSync]   = useState(null);
   const [syncError, setSyncError] = useState(null);
+  const [syncInfo, setSyncInfo]   = useState(null);
   const [toast, setToast]         = useState(null);
   const [fetching, setFetching]   = useState(false);
 
@@ -1668,6 +1669,13 @@ export default function App() {
         setTasks([...byId.values()].sort((a, b) => a.id - b.id));
         showToast(`🔄 Synced — ${changes} task${changes !== 1 ? "s" : ""} updated from colleagues`);
       }
+      setSyncInfo({
+        wl,
+        others: remote.filter(rp => rp.deviceId !== DEVICE_ID)
+          .map(rp => `${rp.by || "?"} (${String(rp.deviceId || "?").slice(0, 6)}): ${Object.keys(rp.tasks || {}).length} task(s)`),
+        pulled: remote.length,
+        changes
+      });
       setSyncError(null);
       setLastSync(new Date().toLocaleTimeString());
     } catch (e) {
@@ -2848,6 +2856,8 @@ export default function App() {
                 techName={techName}
                 lastSync={lastSync}
                 syncError={syncError}
+                syncInfo={syncInfo}
+                deviceId={DEVICE_ID}
                 onLoadWorklist={(file, meta) => { processFile(file); setLoadedWorklist(meta || null); setWorklistAlertDismissed(false); }}
                 getResultFiles={getResultFiles}
               />
