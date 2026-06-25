@@ -1652,16 +1652,25 @@ export default function App() {
       stage = "download";
       const remote = await pullProgress(wl);
       const byId = new Map(base.map(t => [t.id, t]));
+      const rank = (s) => (s && s !== STATUS.PENDING ? 1 : 0); // actioned beats pending
       let changes = 0, considered = 0, noLocal = 0, notNewer = 0, sameState = 0;
+      let newest = null; // newest remote action seen, for diagnostics
       remote.forEach(rp => {
         if (rp.deviceId && rp.deviceId === DEVICE_ID) return; // skip only my own file
         Object.entries(rp.tasks || {}).forEach(([idStr, r]) => {
           if (!r || !r.t) return;
           considered++;
           const id = Number(idStr); const local = byId.get(id);
+          if (!newest || r.t > newest.remoteT) {
+            newest = { id, remoteT: r.t, remoteStatus: r.s, by: rp.by || "?",
+              localT: local ? (local.actionedAt || "(none)") : "(no local task)",
+              localStatus: local ? local.status : "—" };
+          }
           if (!local) { noLocal++; return; }
-          if (!(r.t > (local.actionedAt || ""))) { notNewer++; return; }
-          if (!(local.status !== r.s || (local.comment || "") !== (r.c || ""))) { sameState++; return; }
+          if (local.status === r.s && (local.comment || "") === (r.c || "")) { sameState++; return; }
+          const remoteWins = rank(r.s) > rank(local.status) ||
+            (rank(r.s) === rank(local.status) && r.t > (local.actionedAt || ""));
+          if (!remoteWins) { notNewer++; return; }
           byId.set(id, { ...local, status: r.s, comment: r.c || "", actionedAt: r.t, actionedBy: r.by || "" });
           changes++;
         });
@@ -1677,7 +1686,8 @@ export default function App() {
         pulled: remote.length,
         changes,
         breakdown: `considered=${considered} noLocal=${noLocal} notNewer=${notNewer} sameState=${sameState} applied=${changes}`,
-        localTasks: base.length
+        localTasks: base.length,
+        newest
       });
       setSyncError(null);
       setLastSync(new Date().toLocaleTimeString());
@@ -2970,6 +2980,10 @@ export default function App() {
                 <button className={`pa-done${activeGroup.status===STATUS.DONE?" active":""}`} onClick={()=>applyStatus(STATUS.DONE)}>✓ Complete</button>
                 <button className={`pa-skip${activeGroup.status===STATUS.SKIPPED?" active":""}`} onClick={()=>applyStatus(STATUS.SKIPPED)}>✗ Not Done</button>
                 {activeGroup.status!==STATUS.PENDING&&<button className="pa-reset" onClick={resetGroupTask}>↺</button>}
+              </div>
+              <div style={{padding:"0 20px 8px",fontSize:11,fontFamily:"monospace",color:"var(--text-faint)",flexShrink:0,wordBreak:"break-word"}}>
+                id={activeGroup.id} · status={activeGroup.status} · by={activeGroup.actionedBy||"—"}<br/>
+                actionedAt={activeGroup.actionedAt||"— (none) —"}
               </div>
               {/* Secondary actions */}
               <div style={{display:"flex",gap:8,padding:"0 20px 14px",flexShrink:0}}>
