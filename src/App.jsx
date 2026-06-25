@@ -1652,17 +1652,18 @@ export default function App() {
       stage = "download";
       const remote = await pullProgress(wl);
       const byId = new Map(base.map(t => [t.id, t]));
-      let changes = 0;
+      let changes = 0, considered = 0, noLocal = 0, notNewer = 0, sameState = 0;
       remote.forEach(rp => {
         if (rp.deviceId && rp.deviceId === DEVICE_ID) return; // skip only my own file
         Object.entries(rp.tasks || {}).forEach(([idStr, r]) => {
+          if (!r || !r.t) return;
+          considered++;
           const id = Number(idStr); const local = byId.get(id);
-          if (!local || !r || !r.t) return;
-          if (r.t > (local.actionedAt || "") &&
-              (local.status !== r.s || (local.comment || "") !== (r.c || "") || (local.actionedAt || "") !== r.t)) {
-            byId.set(id, { ...local, status: r.s, comment: r.c || "", actionedAt: r.t, actionedBy: r.by || "" });
-            changes++;
-          }
+          if (!local) { noLocal++; return; }
+          if (!(r.t > (local.actionedAt || ""))) { notNewer++; return; }
+          if (!(local.status !== r.s || (local.comment || "") !== (r.c || ""))) { sameState++; return; }
+          byId.set(id, { ...local, status: r.s, comment: r.c || "", actionedAt: r.t, actionedBy: r.by || "" });
+          changes++;
         });
       });
       if (changes) {
@@ -1674,7 +1675,9 @@ export default function App() {
         others: remote.filter(rp => rp.deviceId !== DEVICE_ID)
           .map(rp => `${rp.by || "?"} (${String(rp.deviceId || "?").slice(0, 6)}): ${Object.keys(rp.tasks || {}).length} task(s)`),
         pulled: remote.length,
-        changes
+        changes,
+        breakdown: `considered=${considered} noLocal=${noLocal} notNewer=${notNewer} sameState=${sameState} applied=${changes}`,
+        localTasks: base.length
       });
       setSyncError(null);
       setLastSync(new Date().toLocaleTimeString());
