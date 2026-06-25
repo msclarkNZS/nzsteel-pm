@@ -85,6 +85,7 @@ export default function SupervisorPanel({ onToast, onAuthChange }) {
       a.href = url; a.download = folder + ".zip";
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+      try { const k = "nzsteel-collected-folders"; const s = new Set(JSON.parse(localStorage.getItem(k) || "[]")); s.add(folder); localStorage.setItem(k, JSON.stringify([...s])); } catch { /* ignore */ }
       note(`✓ Downloaded ${files.length} file(s) as ${folder}.zip`);
     } catch (e) { note("❌ " + (e.message || e)); }
     setBusy("");
