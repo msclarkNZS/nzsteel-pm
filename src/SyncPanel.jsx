@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { listWorklists, downloadWorklist, pushResult } from "./sync.js";
 
-export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync }) {
+export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync, syncError }) {
   const [open, setOpen] = useState(false);
   const [worklists, setWorklists] = useState([]);
   const [busy, setBusy] = useState("");
@@ -79,6 +79,11 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, la
               <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
                 🔄 Auto-sync with colleagues {lastSync ? `· last synced ${lastSync}` : "· runs while online"}
               </div>
+              {syncError && (
+                <div style={{ background: "#2a0a0a", border: "1px solid #dc2626", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#fca5a5", wordBreak: "break-word" }}>
+                  ⚠ Sync {syncError}
+                </div>
+              )}
 
               <button style={{ ...btn("var(--brand)") }} onClick={handlePush} disabled={busy === "push"}>
                 {busy === "push" ? "Pushing…" : "⬆ Push Results"}
