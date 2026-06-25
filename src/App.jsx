@@ -362,6 +362,7 @@ const DEFAULT_SETTINGS = {
   },
   groupConfig: [],
   locationGroups: [],
+  syncDiagnostics: false,
   theme: "nzsteel-dark",
   // Updated Criticality escalation rules
   updatedCritSettings: {
@@ -1652,7 +1653,6 @@ export default function App() {
       stage = "download";
       const remote = await pullProgress(wl);
       const byId = new Map(base.map(t => [t.id, t]));
-      const rank = (s) => (s && s !== STATUS.PENDING ? 1 : 0); // actioned beats pending
       let changes = 0, considered = 0, noLocal = 0, notNewer = 0, sameState = 0;
       let newest = null; // newest remote action seen, for diagnostics
       remote.forEach(rp => {
@@ -1668,9 +1668,9 @@ export default function App() {
           }
           if (!local) { noLocal++; return; }
           if (local.status === r.s && (local.comment || "") === (r.c || "")) { sameState++; return; }
-          const remoteWins = rank(r.s) > rank(local.status) ||
-            (rank(r.s) === rank(local.status) && r.t > (local.actionedAt || ""));
-          if (!remoteWins) { notNewer++; return; }
+          // Most recent action wins (fresh DB reads make timestamps reliable),
+          // so reverting a task to pending also propagates.
+          if (!(r.t > (local.actionedAt || ""))) { notNewer++; return; }
           byId.set(id, { ...local, status: r.s, comment: r.c || "", actionedAt: r.t, actionedBy: r.by || "" });
           changes++;
         });
@@ -2580,6 +2580,14 @@ export default function App() {
                   </>)}
               </Collapsible>
 
+              <Collapsible icon="🛠" title="Diagnostics">
+                <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+                  <input type="checkbox" checked={!!settings.syncDiagnostics} onChange={e=>updateSetting("syncDiagnostics", e.target.checked)} style={{width:18,height:18}}/>
+                  <span style={{fontSize:14,color:"var(--text-primary)"}}>Show sync diagnostics</span>
+                </label>
+                <div className="settings-desc">Adds a "Sync details" panel under ☁ Sync and a raw timestamp line on each task — for troubleshooting multi-device sync. This is a per-device setting; leave off for everyday use.</div>
+              </Collapsible>
+
               {/* Save & Publish shared configuration */}
               </>)}
 
@@ -2871,6 +2879,7 @@ export default function App() {
                 syncError={syncError}
                 syncInfo={syncInfo}
                 deviceId={DEVICE_ID}
+                showDiagnostics={settings.syncDiagnostics}
                 onLoadWorklist={(file, meta) => { processFile(file); setLoadedWorklist(meta || null); setWorklistAlertDismissed(false); }}
                 getResultFiles={getResultFiles}
               />
@@ -2981,10 +2990,12 @@ export default function App() {
                 <button className={`pa-skip${activeGroup.status===STATUS.SKIPPED?" active":""}`} onClick={()=>applyStatus(STATUS.SKIPPED)}>✗ Not Done</button>
                 {activeGroup.status!==STATUS.PENDING&&<button className="pa-reset" onClick={resetGroupTask}>↺</button>}
               </div>
-              <div style={{padding:"0 20px 8px",fontSize:11,fontFamily:"monospace",color:"var(--text-faint)",flexShrink:0,wordBreak:"break-word"}}>
-                id={activeGroup.id} · status={activeGroup.status} · by={activeGroup.actionedBy||"—"}<br/>
-                actionedAt={activeGroup.actionedAt||"— (none) —"}
-              </div>
+              {settings.syncDiagnostics && (
+                <div style={{padding:"0 20px 8px",fontSize:11,fontFamily:"monospace",color:"var(--text-faint)",flexShrink:0,wordBreak:"break-word"}}>
+                  id={activeGroup.id} · status={activeGroup.status} · by={activeGroup.actionedBy||"—"}<br/>
+                  actionedAt={activeGroup.actionedAt||"— (none) —"}
+                </div>
+              )}
               {/* Secondary actions */}
               <div style={{display:"flex",gap:8,padding:"0 20px 14px",flexShrink:0}}>
                 <button style={{flex:1,background:"#1c1400",color:"#f59e0b",border:"1px solid #d9770644",borderRadius:7,fontFamily:"'Roboto Condensed',sans-serif",fontSize:14,fontWeight:700,letterSpacing:"0.5px",textTransform:"uppercase",padding:"11px 8px",cursor:"pointer",minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
