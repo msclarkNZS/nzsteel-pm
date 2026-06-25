@@ -170,36 +170,33 @@ export async function saveConfig(config) {
 }
 
 // ── Live-ish progress sharing (merge-on-pull multi-device sync) ───────────────
-// Each device writes its own progress JSON for a worklist; devices pull all of
-// them and merge "most recent action wins". Needs a separate `progress` bucket
-// where technicians (anon) can both read and write (see setup notes).
-const PROGRESS_BUCKET = "progress";
-const slug = (s) => String(s || "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "x";
+// Stored in a Postgres table (NOT storage) because storage sits behind a CDN
+// that serves stale cached copies; database reads are always fresh. Needs a
+// `progress` table with anon read/write (see setup notes).
+//   columns: worklist text, device_id text, by_name text, tasks jsonb,
+//            updated_at timestamptz   PRIMARY KEY (worklist, device_id)
 
-export async function pushProgress(worklistName, fileKey, progress) {
-  const path = `${slug(worklistName)}/${slug(fileKey)}.json`;
-  const blob = new Blob([JSON.stringify(progress)], { type: "application/json" });
-  const { error } = await supabase.storage
-    .from(PROGRESS_BUCKET)
-    .upload(path, blob, { upsert: true, contentType: "application/json", cacheControl: "0" });
+export async function pushProgress(worklistName, deviceId, progress) {
+  const row = {
+    worklist: worklistName,
+    device_id: deviceId,
+    by_name: progress?.by || "tech",
+    tasks: progress?.tasks || {},
+    updated_at: progress?.updatedAt || new Date().toISOString()
+  };
+  const { error } = await supabase.from("progress").upsert(row, { onConflict: "worklist,device_id" });
   if (error) throw error;
 }
 
 export async function pullProgress(worklistName) {
-  const folder = slug(worklistName);
-  const { data, error } = await supabase.storage.from(PROGRESS_BUCKET).list(folder, { limit: 200 });
-  if (error || !data) return [];
-  const out = [];
-  for (const f of data) {
-    if (!f.name || !f.name.endsWith(".json")) continue;
-    try {
-      const { data: blob, error: e2 } = await supabase.storage.from(PROGRESS_BUCKET).download(`${folder}/${f.name}`);
-      if (e2 || !blob) continue;
-      const parsed = JSON.parse(await blob.text());
-      if (parsed && typeof parsed === "object") out.push(parsed);
-    } catch { /* skip bad file */ }
-  }
-  return out;
+  const { data, error } = await supabase.from("progress").select("device_id,by_name,tasks,updated_at").eq("worklist", worklistName);
+  if (error) throw error;
+  return (data || []).map(r => ({
+    deviceId: r.device_id,
+    by: r.by_name,
+    tasks: r.tasks || {},
+    updatedAt: r.updated_at
+  }));
 }
 // Stored as roster.json in the worklists bucket, which already allows anon read
 // (so the sign-in screen can offer a name dropdown) and supervisor-only write.
