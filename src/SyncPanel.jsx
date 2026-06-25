@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { listWorklists, downloadWorklist, pushResult } from "./sync.js";
 
-export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync, syncError }) {
+export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, lastSync, syncError, syncInfo, deviceId }) {
   const [open, setOpen] = useState(false);
   const [worklists, setWorklists] = useState([]);
   const [busy, setBusy] = useState("");
@@ -84,6 +84,19 @@ export default function SyncPanel({ techName, onLoadWorklist, getResultFiles, la
                   ⚠ Sync {syncError}
                 </div>
               )}
+              <details style={{ fontSize: 11, color: "var(--text-faint)", background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px" }}>
+                <summary style={{ cursor: "pointer", color: "var(--text-dim)" }}>Sync details</summary>
+                <div style={{ fontFamily: "monospace", lineHeight: 1.6, marginTop: 6, wordBreak: "break-word" }}>
+                  <div>This device: {String(deviceId || "?").slice(0, 8)}</div>
+                  <div>Worklist: {syncInfo?.wl || "— not loaded via Sync —"}</div>
+                  <div>Progress files seen: {syncInfo ? syncInfo.pulled : "—"}</div>
+                  <div>From others:</div>
+                  {syncInfo?.others?.length
+                    ? syncInfo.others.map((o, i) => <div key={i}>· {o}</div>)
+                    : <div>· (none)</div>}
+                  <div>Applied last sync: {syncInfo ? syncInfo.changes : "—"}</div>
+                </div>
+              </details>
 
               <button style={{ ...btn("var(--brand)") }} onClick={handlePush} disabled={busy === "push"}>
                 {busy === "push" ? "Pushing…" : "⬆ Push Results"}
