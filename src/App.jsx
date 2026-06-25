@@ -4,6 +4,7 @@ import { saveSession, loadSession, clearSession, saveAuth, loadAuth, clearAuth }
 import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
+import StoragePanel from "./StoragePanel.jsx";
 import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig, pushProgress, pullProgress } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
@@ -2578,6 +2579,10 @@ export default function App() {
                       })}
                     </div>
                   </>)}
+              </Collapsible>
+
+              <Collapsible icon="🗄" title="Assess Storage">
+                <StoragePanel onToast={showToast} />
               </Collapsible>
 
               <Collapsible icon="🛠" title="Diagnostics">
