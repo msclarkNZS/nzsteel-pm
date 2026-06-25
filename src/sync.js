@@ -144,6 +144,55 @@ export async function deleteResultFolder(folder) {
   if (error) throw error;
 }
 
+// ── Storage assessment (admin) ────────────────────────────────────────────────
+const SYSTEM_FILES = ["roster.json", "floc-source.xlsx", "config.json"];
+
+// Every file in the worklists bucket, tagged Worklist vs System.
+export async function listWorklistsBucket() {
+  const { data, error } = await supabase.storage
+    .from(WORKLISTS_BUCKET)
+    .list("", { limit: 1000, sortBy: { column: "updated_at", order: "desc" } });
+  if (error) throw error;
+  return (data || [])
+    .filter(f => f.name && !f.name.startsWith(".") && f.id) // f.id present → real file
+    .map(f => ({
+      name: f.name,
+      type: SYSTEM_FILES.includes(f.name.toLowerCase()) ? "System" : "Worklist",
+      size: f.metadata?.size ?? 0,
+      updatedAt: f.updated_at || f.created_at || null
+    }));
+}
+
+// Each returned-results folder summarised (file/photo counts, size, date).
+export async function listResultsSummary() {
+  const { data: folders, error } = await supabase.storage
+    .from(RESULTS_BUCKET)
+    .list("", { limit: 1000, sortBy: { column: "name", order: "desc" } });
+  if (error) throw error;
+  const out = [];
+  for (const fo of (folders || [])) {
+    if (!fo.name || fo.name.startsWith(".")) continue;
+    const files = await listResultFiles(fo.name);
+    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+    const photoCount = files.filter(f => /\.(jpg|jpeg|png)$/i.test(f.name)).length;
+    out.push({
+      folder: fo.name,
+      fileCount: files.length,
+      photoCount,
+      totalSize,
+      updatedAt: fo.updated_at || fo.created_at || null
+    });
+  }
+  return out;
+}
+
+// Delete selected worklist-bucket files by name.
+export async function deleteWorklistFiles(names) {
+  if (!names || !names.length) return;
+  const { error } = await supabase.storage.from(WORKLISTS_BUCKET).remove(names);
+  if (error) throw error;
+}
+
 // ── Shared admin configuration (config.json) ───────────────────────────────────
 // Admin publishes one config that every device fetches and applies on startup
 // (column mappings, criticality rules, file settings, location groups). Themes
