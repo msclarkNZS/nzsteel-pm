@@ -1121,6 +1121,7 @@ export default function App() {
   const [netStatus, setNetStatus] = useState("checking");
   const [lastSaved, setLastSaved] = useState(null);
   const [lastSync, setLastSync]   = useState(null);
+  const [syncError, setSyncError] = useState(null);
   const [toast, setToast]         = useState(null);
   const [fetching, setFetching]   = useState(false);
 
@@ -1639,6 +1640,7 @@ export default function App() {
     const wl = loadedWorklist?.name;
     if (netStatus !== "online" || !wl || syncBusyRef.current) return;
     syncBusyRef.current = true;
+    let stage = "upload";
     try {
       const base = tasksRef.current;
       // Push my actioned tasks
@@ -1646,6 +1648,7 @@ export default function App() {
       base.forEach(t => { if (t.actionedAt) mine[t.id] = { s: t.status, c: t.comment || "", t: t.actionedAt, by: t.actionedBy || "" }; });
       await pushProgress(wl, DEVICE_ID, { worklist: wl, by: techName || "tech", deviceId: DEVICE_ID, updatedAt: new Date().toISOString(), tasks: mine });
       // Pull everyone's and merge (most recent wins)
+      stage = "download";
       const remote = await pullProgress(wl);
       const byId = new Map(base.map(t => [t.id, t]));
       let changes = 0;
@@ -1665,8 +1668,11 @@ export default function App() {
         setTasks([...byId.values()].sort((a, b) => a.id - b.id));
         showToast(`🔄 Synced — ${changes} task${changes !== 1 ? "s" : ""} updated from colleagues`);
       }
+      setSyncError(null);
       setLastSync(new Date().toLocaleTimeString());
-    } catch { /* quiet — try again next cycle */ }
+    } catch (e) {
+      setSyncError(`${stage} failed: ${e?.message || e}`);
+    }
     finally { syncBusyRef.current = false; }
   }, [netStatus, loadedWorklist, techName]);
 
@@ -2841,6 +2847,7 @@ export default function App() {
               <SyncPanel
                 techName={techName}
                 lastSync={lastSync}
+                syncError={syncError}
                 onLoadWorklist={(file, meta) => { processFile(file); setLoadedWorklist(meta || null); setWorklistAlertDismissed(false); }}
                 getResultFiles={getResultFiles}
               />
