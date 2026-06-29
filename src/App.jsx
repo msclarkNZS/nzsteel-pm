@@ -1478,6 +1478,23 @@ export default function App() {
     return getFlocLevelDesc(flocStr, descMap, level) || null;
   }, [descMap]);
 
+  // The task's floc description: use the mapped column if it has a value,
+  // otherwise cross-reference the functional location against the IH06 data
+  // (exact match first, then the nearest known parent level).
+  const flocDescOf = useCallback((task) => {
+    const direct = fv(task, "flocDesc");
+    if (direct && direct.trim()) return direct;
+    const loc = fv(task, "functLocation");
+    if (!loc || !descMap) return "";
+    if (descMap[loc]) return descMap[loc];
+    const parts = parseFlocLevels(loc);
+    for (let i = parts.length; i >= 1; i--) {
+      const key = parts.slice(0, i).join("/");
+      if (descMap[key]) return descMap[key];
+    }
+    return "";
+  }, [fv, descMap]);
+
   const groupedTasks = useMemo(() => groupTasksById(tasks, fieldMap), [tasks, fieldMap]);
   const taskById     = useMemo(() => { const m = {}; tasks.forEach(t => { m[t.id] = t; }); return m; }, [tasks]);
 
@@ -1549,7 +1566,7 @@ export default function App() {
     const grp = locationGroupFilter ? (settings.locationGroups||[]).find(x=>x.id===locationGroupFilter) : null;
     return groupedTasks.filter(g => {
       if (statusFilter !== "all" && g.status !== statusFilter) return false;
-      if (searchFloc && !lc(fv(g,"flocDesc")).includes(lc(searchFloc))) return false;
+      if (searchFloc && !lc(flocDescOf(g)).includes(lc(searchFloc))) return false;
       if (searchOpText && !lc(fv(g,"opText")).includes(lc(searchOpText))) return false;
       if (searchLimit && !lc(fv(g,"acceptableLimit")).includes(lc(searchLimit))) return false;
       if (searchAction && !lc(fv(g,"correctiveAction")).includes(lc(searchAction))) return false;
@@ -1570,7 +1587,7 @@ export default function App() {
     });
   }, [groupedTasks,statusFilter,searchFloc,searchOpText,searchLimit,searchAction,
       searchProcedure,searchOrder,dropLubricant,dropRoute,dropCriticality,dropUpdatedCriticality,
-      dropCondition,dropInterval,locationGroupFilter,settings.locationGroups,matchesHier,fv,getUpdatedCriticality]);
+      dropCondition,dropInterval,locationGroupFilter,settings.locationGroups,matchesHier,fv,flocDescOf,getUpdatedCriticality]);
 
   // All Level-1 areas the app knows about (from the IH06 file and any loaded
   // worklist), for the admin's location-group editor. Keyed by L1 floc (NZ/054).
@@ -1823,7 +1840,7 @@ export default function App() {
       id: Date.now() + Math.random(),
       type: notifFormType,
       taskId: notifFormTask ? fv(notifFormTask, "taskId") : "",
-      taskDesc: notifFormTask ? fv(notifFormTask, "flocDesc") : "",
+      taskDesc: notifFormTask ? flocDescOf(notifFormTask) : "",
       functLocation: notifFormFloc,
       functLocationDesc: notifFormFlocDesc,
       title: notifFormTitle.trim(),
@@ -1932,7 +1949,7 @@ export default function App() {
     return nodes.map(node => {
       if (node.status !== undefined) {
         const g = node, sm = STATUS_META[g.status];
-        const floc    = fv(g,"flocDesc") || "(no description)";
+        const floc    = flocDescOf(g) || "(no description)";
         const opTxt   = fv(g,"opText"), lube=fv(g,"lubricant"), order=fv(g,"order");
         const crit    = fv(g,"criticalityInd"), route=fv(g,"route");
         const flocRaw = fv(g,"functLocation");
@@ -2906,7 +2923,7 @@ export default function App() {
                     {fv(activeGroup,"taskId") && <span className="panel-tid-badge">Task {fv(activeGroup,"taskId")}</span>}
                     {activeGroup.children.length>0 && <span className="panel-group-info">+{activeGroup.children.length} linked — closes together</span>}
                   </div>
-                  <div className="panel-floc">{fv(activeGroup,"flocDesc")||"(no description)"}</div>
+                  <div className="panel-floc">{flocDescOf(activeGroup)||"(no description)"}</div>
                   {fv(activeGroup,"opText")&&<div className="panel-optext">{fv(activeGroup,"opText")}</div>}
                   {/* L1 / L2 / L3 location breadcrumb */}
                   {fv(activeGroup,"functLocation") && (() => {
@@ -2970,7 +2987,7 @@ export default function App() {
                           <div className="subtask-dot" style={{background:csm.border}}/>
                           <div className="subtask-text">
                             {idx===0&&<strong style={{color:"#4a9eff",marginRight:6,fontSize:13}}>Primary</strong>}
-                            {fv(ct,"opText")||fv(ct,"flocDesc")||`Row ${cid+1}`}
+                            {fv(ct,"opText")||flocDescOf(ct)||`Row ${cid+1}`}
                           </div>
                           <span className="subtask-chip" style={{color:csm.color,background:csm.bg}}>{csm.label}</span>
                         </div>
@@ -3029,7 +3046,7 @@ export default function App() {
                     {notifFormType === "issue" ? "⚠ Issue with Task" : "🔔 Raise Notification"}
                   </div>
                   <div className="notif-hdr-sub">
-                    {notifFormTask ? `Linked to: ${fv(notifFormTask,"flocDesc")||"(task)"}` : "Standalone — not linked to a task"}
+                    {notifFormTask ? `Linked to: ${flocDescOf(notifFormTask)||"(task)"}` : "Standalone — not linked to a task"}
                   </div>
                 </div>
                 <button className="panel-x" onClick={()=>setShowNotifForm(false)}>✕</button>
