@@ -164,6 +164,20 @@ function parseFlocLevels(val) {
   return String(val).split("/").map(s => s.trim()).filter(Boolean);
 }
 
+// Compare two functional-location strings in plant (hierarchical) order, segment
+// by segment, numerically where both segments are numbers (so 9 < 10, 054 < 62).
+function compareFlocStr(a, b) {
+  const pa = parseFlocLevels(a), pb = parseFlocLevels(b);
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const sa = pa[i] ?? "", sb = pb[i] ?? "";
+    if (sa === sb) continue;
+    if (/^\d+$/.test(sa) && /^\d+$/.test(sb)) return Number(sa) - Number(sb);
+    return sa < sb ? -1 : 1;
+  }
+  return pa.length - pb.length;
+}
+
 function buildFlocHierarchy(tasks, fieldMap, descMap) {
   const col = fieldMap.functLocation;
   if (!col) return null;
@@ -1584,7 +1598,7 @@ export default function App() {
       }
       if (!matchesHier(g)) return false;
       return true;
-    });
+    }).sort((x, y) => compareFlocStr(fv(x, "functLocation"), fv(y, "functLocation")));
   }, [groupedTasks,statusFilter,searchFloc,searchOpText,searchLimit,searchAction,
       searchProcedure,searchOrder,dropLubricant,dropRoute,dropCriticality,dropUpdatedCriticality,
       dropCondition,dropInterval,locationGroupFilter,settings.locationGroups,matchesHier,fv,flocDescOf,getUpdatedCriticality]);
