@@ -250,21 +250,41 @@ function getGroupValue(task, groupDef, fieldMap, descMap, getUpdatedCrit) {
   return "—";
 }
 
+// Like getGroupValue but returns a separate sort/bucket key and display label,
+// so location groups can sort by the floc CODE (plant order) while showing the
+// description.
+function getGroupKeyLabel(task, groupDef, fieldMap, descMap, getUpdatedCrit) {
+  if (groupDef.type === "flocLevel") {
+    const col = fieldMap.functLocation;
+    const flocStr = col ? String(task.raw[col] || "") : "";
+    const parts = parseFlocLevels(flocStr);
+    const level = parseInt(groupDef.value, 10);
+    const rawKey = parts.slice(0, level + 1).join("/");
+    const label = (descMap && descMap[rawKey]) ? descMap[rawKey] : (parts[level] || "—");
+    return { key: rawKey || "—", label };
+  }
+  const v = getGroupValue(task, groupDef, fieldMap, descMap, getUpdatedCrit);
+  return { key: v, label: v };
+}
+
 function buildDisplayGroups(tasks, groupConfig, depth, fieldMap, descMap, getUpdatedCrit) {
   if (!groupConfig || !groupConfig.length || depth >= groupConfig.length) return tasks;
   const def = groupConfig[depth];
-  const buckets = {}, order = [];
+  const buckets = {}, order = [], labelByKey = {};
   tasks.forEach(t => {
-    const val = getGroupValue(t, def, fieldMap, descMap, getUpdatedCrit);
-    if (!buckets[val]) { buckets[val] = []; order.push(val); }
-    buckets[val].push(t);
+    const { key, label } = getGroupKeyLabel(t, def, fieldMap, descMap, getUpdatedCrit);
+    if (!buckets[key]) { buckets[key] = []; order.push(key); labelByKey[key] = label; }
+    buckets[key].push(t);
   });
   const isCritSort = (def.type === "field" && def.value === "criticalityInd") || def.type === "updatedCrit";
+  const isFlocSort = def.type === "flocLevel";
   const sorted = isCritSort
-    ? order.sort((a, b) => criticalityRank(a) - criticalityRank(b))
-    : order.sort((a, b) => a.localeCompare(b));
+    ? order.sort((a, b) => criticalityRank(labelByKey[a]) - criticalityRank(labelByKey[b]))
+    : isFlocSort
+      ? order.sort((a, b) => compareFlocStr(a, b))
+      : order.sort((a, b) => labelByKey[a].localeCompare(labelByKey[b]));
   return sorted.map(key => ({
-    key, label: key, groupDef: def, depth,
+    key, label: labelByKey[key], groupDef: def, depth,
     items: buildDisplayGroups(buckets[key], groupConfig, depth + 1, fieldMap, descMap, getUpdatedCrit),
     isLeaf: depth === groupConfig.length - 1,
   }));
