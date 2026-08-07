@@ -1101,55 +1101,71 @@ const css = `
   .mode-placeholder-title { font-family: 'Roboto Condensed', sans-serif; font-size: 26px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px; }
   .mode-placeholder-sub { font-size: 15px; color: var(--text-dim); max-width: 420px; line-height: 1.5; }
 
-  /* ── Checklist mode ── */
-  .cf-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  /* ── Checklist mode — fixed high-contrast palette (theme-independent) so form
+        text is always readable regardless of the chosen app theme ── */
+  .cf-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; --cfsurface:#16202e; --cfinput:#0e1826; --cfborder:#2b3d52; --cfborderlt:#3f5674; --cftext:#eaf1f8; --cfdim:#a6bace; --cffaint:#7488a0; --cfaccent:#4a9eff; --cfbar:#111a26; }
   .cf-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-  .cf-listhdr, .cf-formtitle { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-primary); }
-  .cf-formhdr { padding: 14px 16px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .cf-formmeta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
-  .cf-secname { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--accent); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .cf-taghdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+  .cf-listhdr, .cf-formtitle { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--cftext); }
+  .cf-formhdr { padding: 14px 16px; background: var(--cfsurface); border-bottom: 1px solid var(--cfborder); flex-shrink: 0; }
+  .cf-formmeta { font-size: 12px; color: var(--cfdim); margin-top: 2px; }
+  .cf-secname { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--cfaccent); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .cf-taghdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--cffaint); margin-bottom: 8px; }
   .cf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
-  .cf-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--brand); border-radius: 10px; padding: 16px; cursor: pointer; text-align: left; }
-  .cf-card:hover { background: var(--bg-mid); }
-  .cf-card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-  .cf-card-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+  .cf-card { background: var(--cfsurface); border: 1px solid var(--cfborder); border-left: 4px solid var(--cfaccent); border-radius: 10px; padding: 16px; cursor: pointer; text-align: left; }
+  .cf-card:hover { background: #1b2a3d; }
+  .cf-card-title { font-size: 16px; font-weight: 600; color: var(--cftext); }
+  .cf-card-sub { font-size: 12px; color: var(--cfdim); margin-top: 3px; }
   .cf-err { color: #fca5a5; background: #200808; border: 1px solid #dc2626; border-radius: 8px; padding: 10px 14px; font-size: 13px; }
 
-  .cf-field { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-  .cf-label { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  /* Section navigator */
+  .cf-navigator { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px; background: var(--cfbar); border-bottom: 1px solid var(--cfborder); flex-shrink: 0; }
+  .cf-navchip { flex-shrink: 0; border: 1px solid var(--cfborder); background: var(--cfinput); color: var(--cfdim); border-radius: 16px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 34px; }
+  .cf-navchip.on { background: var(--cfaccent); color: #04121f; border-color: var(--cfaccent); }
+
+  .cf-field { background: var(--cfsurface); border: 1px solid var(--cfborder); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cf-label { font-size: 15px; font-weight: 600; color: var(--cftext); }
   .cf-req { color: #f87171; }
-  .cf-help { font-size: 13px; color: var(--text-dim); }
-  .cf-ref { font-size: 12px; color: var(--accent); text-decoration: none; }
-  .cf-refphoto { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+  .cf-help { font-size: 13px; color: var(--cfdim); }
+  .cf-ref { font-size: 12px; color: var(--cfaccent); text-decoration: none; }
+  .cf-refphoto { max-width: 100%; border-radius: 8px; border: 1px solid var(--cfborder); }
   .cf-inputwrap { margin-top: 2px; }
-  .cf-input { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 16px; font-family: 'Roboto', sans-serif; outline: none; }
-  .cf-input:focus { border-color: var(--brand); }
+  .cf-input { width: 100%; background: var(--cfinput); color: var(--cftext); border: 1px solid var(--cfborder); border-radius: 8px; padding: 12px 14px; font-size: 16px; font-family: 'Roboto', sans-serif; outline: none; }
+  .cf-input:focus { border-color: var(--cfaccent); }
   .cf-numrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .cf-numrow .cf-input { flex: 1; min-width: 120px; }
-  .cf-unit { color: var(--text-dim); font-size: 14px; }
+  .cf-unit { color: var(--cfdim); font-size: 14px; }
   .cf-btnrow { display: flex; gap: 8px; }
-  .cf-pf { flex: 1; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 8px; padding: 14px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; min-height: 52px; }
+  .cf-pf { flex: 1; border: 1px solid var(--cfborder); background: var(--cfinput); color: var(--cfdim); border-radius: 8px; padding: 14px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; min-height: 52px; }
   .cf-pf-pass.on { background: #15803d; color: #fff; border-color: #15803d; }
   .cf-pf-fail.on { background: #991b1b; color: #fff; border-color: #991b1b; }
   .cf-pf-na.on { background: #4b5563; color: #fff; border-color: #4b5563; }
-  .cf-toggle { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 8px; padding: 12px 18px; font-weight: 700; cursor: pointer; min-height: 48px; }
+  .cf-toggle { border: 1px solid var(--cfborder); background: var(--cfinput); color: var(--cfdim); border-radius: 8px; padding: 12px 18px; font-weight: 700; cursor: pointer; min-height: 48px; }
   .cf-toggle.on { background: #15803d; color: #fff; border-color: #15803d; }
   .cf-chips, .cf-stars { display: flex; gap: 8px; flex-wrap: wrap; }
-  .cf-chip { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 20px; padding: 8px 14px; cursor: pointer; font-size: 14px; min-height: 40px; }
-  .cf-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
-  .cf-star { background: none; border: none; font-size: 30px; color: var(--border-light); cursor: pointer; line-height: 1; padding: 0 2px; }
+  .cf-chip { border: 1px solid var(--cfborder); background: var(--cfinput); color: var(--cfdim); border-radius: 20px; padding: 8px 14px; cursor: pointer; font-size: 14px; min-height: 40px; }
+  .cf-chip.on { background: var(--cfaccent); color: #04121f; border-color: var(--cfaccent); }
+  .cf-star { background: none; border: none; font-size: 30px; color: var(--cfborderlt); cursor: pointer; line-height: 1; padding: 0 2px; }
   .cf-star.on { color: #fbbf24; }
   .cf-comment { display: flex; flex-direction: column; gap: 8px; }
-  .cf-addcomment { align-self: flex-start; background: none; border: 1px dashed var(--border-light); color: var(--text-dim); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
-  .cf-photo-btn { align-self: flex-start; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
-  .cf-thumb { max-width: 160px; border-radius: 8px; border: 1px solid var(--border); }
-  .cf-info { background: #0e2036; border: 1px solid #1e3a5f; border-left: 4px solid var(--brand); border-radius: 10px; padding: 14px; }
-  .cf-info-title { font-weight: 700; color: var(--accent); }
-  .cf-info-body { font-size: 14px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  .cf-addcomment { align-self: flex-start; background: none; border: 1px dashed var(--cfborderlt); color: var(--cfdim); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  .cf-photo-btn { align-self: flex-start; background: var(--cfinput); border: 1px solid var(--cfborder); color: var(--cftext); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
+  .cf-thumb { max-width: 160px; border-radius: 8px; border: 1px solid var(--cfborder); }
+  .cf-info { background: #0e2036; border: 1px solid #24466e; border-left: 4px solid var(--cfaccent); border-radius: 10px; padding: 14px; }
+  .cf-info-title { font-weight: 700; color: var(--cfaccent); }
+  .cf-info-body { font-size: 14px; color: #cdddec; margin-top: 4px; line-height: 1.5; }
   .cf-soon { font-size: 13px; color: #fbbf24; background: #201808; border: 1px dashed #d97706; border-radius: 8px; padding: 10px 14px; }
-  .cf-nav { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: var(--bg-bar); flex-shrink: 0; }
+  .cf-nav { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
   .cf-navbtn { flex: 1; min-height: 52px; }
+
+  /* Matrix (per-item grid) */
+  .cf-matrix-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--cfborder); }
+  .cf-matrix-row:first-child { border-top: none; }
+  .cf-matrix-col { font-size: 14px; font-weight: 700; color: var(--cftext); }
+  .cf-item-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .cf-item-btn { border: 1px solid var(--cfborder); background: var(--cfinput); color: var(--cftext); border-radius: 8px; padding: 12px 16px; font-weight: 700; cursor: pointer; min-height: 48px; min-width: 56px; }
+  .cf-item-btn.on { background: var(--cfaccent); color: #04121f; border-color: var(--cfaccent); }
+  .cf-item-btn.done { border-color: #15803d; }
+  .cf-scope-note { font-size: 13px; color: var(--cfaccent); font-weight: 700; margin-bottom: 6px; }
 
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
