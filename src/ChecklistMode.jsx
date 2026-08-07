@@ -12,7 +12,7 @@ import { listForms, submitForm } from "./sync.js";
 import { compressImage } from "./photo.js";
 import { saveDraft, listDrafts, deleteDraft } from "./storage.js";
 
-export default function ChecklistMode({ techName, onToast }) {
+export default function ChecklistMode({ techName, onToast, onMarkup }) {
   const note = (m) => onToast && onToast(m);
   const [stage, setStage] = useState("list"); // list | fill | done
   const [forms, setForms] = useState([]);
@@ -206,6 +206,7 @@ export default function ChecklistMode({ techName, onToast }) {
               <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => readPhoto(e.target.files[0], key)} />
             </label>
             {values[key] && <img className="cf-thumb" src={values[key]} alt="" />}
+            {values[key] && onMarkup && <button className="cf-photo-btn" onClick={() => onMarkup(values[key], nu => setV(key, nu))}>✏️ Mark up</button>}
           </div>
         );
       case "matrix":
@@ -219,8 +220,22 @@ export default function ChecklistMode({ techName, onToast }) {
             ))}
           </div>
         );
-      case "markup":
-        return <div className="cf-soon">Photo mark-up — coming soon.</div>;
+      case "markup": {
+        const mkey = `${f.id}_markup`;
+        const base = values[mkey] || f.refPhoto || null;
+        return (
+          <div className="cf-comment">
+            {values[mkey]
+              ? <img className="cf-thumb" src={values[mkey]} alt="" style={{ maxWidth: 240 }} />
+              : f.refPhoto ? <img className="cf-refphoto" src={f.refPhoto} alt="reference" /> : null}
+            {base
+              ? <button className="cf-photo-btn" onClick={() => onMarkup && onMarkup(base, nu => setV(mkey, nu))}>✏️ Mark up photo</button>
+              : <label className="cf-photo-btn">📷 Take a photo to mark up
+                  <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => readPhoto(e.target.files[0], mkey)} />
+                </label>}
+          </div>
+        );
+      }
       default:
         return <input className="cf-input" value={values[key] ?? ""} onChange={e => setV(key, e.target.value)} />;
     }
