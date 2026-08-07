@@ -1156,6 +1156,8 @@ const css = `
   .cf-soon { font-size: 13px; color: #fbbf24; background: #201808; border: 1px dashed #d97706; border-radius: 8px; padding: 10px 14px; }
   .cf-nav { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
   .cf-navbtn { flex: 1; min-height: 52px; }
+  .cf-savebtn { flex-shrink: 0; background: var(--cfinput); border: 1px solid var(--cfborderlt); color: var(--cftext); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; min-height: 40px; white-space: nowrap; }
+  .cf-savebtn:hover { border-color: var(--cfaccent); }
 
   /* Matrix (per-item grid) */
   .cf-matrix-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--cfborder); }
