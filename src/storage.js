@@ -94,3 +94,31 @@ export async function clearAuth() {
     return false;
   }
 }
+
+// ── Checklist drafts (save/resume half-filled forms, per device) ──────────────
+export async function saveDraft(draft) {
+  try {
+    const database = await db();
+    await database.put(STORE, draft, `draft:${draft.id}`);
+    return true;
+  } catch (e) { console.warn("saveDraft failed:", e); return false; }
+}
+
+export async function listDrafts() {
+  try {
+    const database = await db();
+    const keys = await database.getAllKeys(STORE);
+    const draftKeys = keys.filter(k => typeof k === "string" && k.startsWith("draft:"));
+    const out = [];
+    for (const k of draftKeys) { const d = await database.get(STORE, k); if (d) out.push(d); }
+    return out.sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+  } catch (e) { console.warn("listDrafts failed:", e); return []; }
+}
+
+export async function deleteDraft(id) {
+  try {
+    const database = await db();
+    await database.delete(STORE, `draft:${id}`);
+    return true;
+  } catch (e) { console.warn("deleteDraft failed:", e); return false; }
+}
