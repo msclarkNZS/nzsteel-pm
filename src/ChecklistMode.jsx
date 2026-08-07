@@ -8,13 +8,14 @@
 // a matrix field here shows a "coming soon" note so the rest of the form still works.
 
 import { useState, useEffect, useCallback } from "react";
-import { listApprovedForms, submitForm } from "./sync.js";
+import { listForms, submitForm } from "./sync.js";
 import { compressImage } from "./photo.js";
 
 export default function ChecklistMode({ techName, onToast }) {
   const note = (m) => onToast && onToast(m);
   const [stage, setStage] = useState("list"); // list | fill | done
   const [forms, setForms] = useState([]);
+  const [allForms, setAllForms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [form, setForm] = useState(null);      // the row.data object
@@ -25,8 +26,11 @@ export default function ChecklistMode({ techName, onToast }) {
 
   const loadForms = useCallback(async () => {
     setLoading(true); setErr("");
-    try { setForms(await listApprovedForms()); }
-    catch (e) { setErr(e.message || String(e)); }
+    try {
+      const rows = await listForms();
+      setAllForms(rows);
+      setForms(rows.filter(r => String(r.status || "").trim().toLowerCase() === "approved"));
+    } catch (e) { setErr(e.message || String(e)); }
     setLoading(false);
   }, []);
   useEffect(() => { loadForms(); }, [loadForms]);
@@ -235,7 +239,13 @@ export default function ChecklistMode({ techName, onToast }) {
         <div className="cf-listhdr">Select a checklist</div>
         {loading && <div className="settings-desc">Loading…</div>}
         {err && <div className="cf-err">⚠ Could not load forms: {err}</div>}
-        {!loading && !err && forms.length === 0 && <div className="settings-desc">No approved checklists available yet.</div>}
+        {!loading && !err && forms.length === 0 && (
+          allForms.length === 0
+            ? <div className="cf-err" style={{color:"#fbbf24",background:"#201808",borderColor:"#d97706"}}>No forms are visible to this app. Either none have been created, or the app doesn't have read access to the <code>forms</code> table (check the RLS policy for the <code>anon</code> role).</div>
+            : <div className="cf-err" style={{color:"#fbbf24",background:"#201808",borderColor:"#d97706"}}>
+                Found {allForms.length} form(s), but none are <strong>Approved</strong>. Statuses present: {[...new Set(allForms.map(f => f.status || "(none)"))].join(", ")}. Only approved checklists appear here — approve it in the Form Builder.
+              </div>
+        )}
         {Object.keys(byTag).sort().map(tag => (
           <div key={tag} style={{ marginBottom: 18 }}>
             <div className="cf-taghdr">{tag}</div>
