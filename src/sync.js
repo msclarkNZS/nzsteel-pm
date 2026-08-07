@@ -289,3 +289,65 @@ export async function getSupervisor() {
   const { data } = await supabase.auth.getUser();
   return data?.user || null;
 }
+
+// ── Digital check sheets (Checklist mode) ─────────────────────────────────────
+// Forms are designed in nzsteel-form-builder and stored in the shared `forms`
+// table; completed results go to `form_submissions`. Submission photos go to a
+// PRIVATE `submission-photos` bucket — we store long-lived SIGNED URLs so both
+// apps can render them with <img src> without the bucket being public.
+const SUBMISSION_BUCKET = "submission-photos";
+const SIGNED_TTL = 315360000; // ~10 years
+
+export async function listApprovedForms() {
+  const { data, error } = await supabase
+    .from("forms").select("*").eq("status", "approved").order("title", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// Sweep an object for base64 images, upload each to the private bucket, and
+// replace with a long-lived signed URL. Non-image values pass through.
+async function uploadDataUrlsInObject(obj, basePath) {
+  const out = {};
+  for (const [key, val] of Object.entries(obj || {})) {
+    if (typeof val === "string" && val.startsWith("data:image")) {
+      try {
+        const res = await fetch(val);
+        const blob = await res.blob();
+        const ext = (blob.type.split("/")[1] || "jpg").split("+")[0];
+        const path = `${basePath}/${key}.${ext}`;
+        const up = await supabase.storage.from(SUBMISSION_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true });
+        if (up.error) throw up.error;
+        const signed = await supabase.storage.from(SUBMISSION_BUCKET).createSignedUrl(path, SIGNED_TTL);
+        if (signed.error) throw signed.error;
+        out[key] = signed.data.signedUrl;
+      } catch (e) {
+        console.error("Photo upload failed for", key, e);
+        out[key] = val; // fall back to embedding rather than losing the photo
+      }
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+// form = the row.data object (has id, title, docRef, version, sections)
+export async function submitForm({ form, values, photos, submittedBy }) {
+  const submissionId = (crypto.randomUUID ? crypto.randomUUID() : "s" + Date.now() + Math.random().toString(36).slice(2));
+  const basePath = `${form.id}/${submissionId}`;
+  const uploadedValues = await uploadDataUrlsInObject(values, basePath);
+  const uploadedPhotos = await uploadDataUrlsInObject(photos || {}, basePath);
+  const { error } = await supabase.from("form_submissions").insert({
+    id: submissionId,
+    form_id: form.id,
+    form_title: form.title,
+    form_doc_ref: form.docRef,
+    form_version: form.version,
+    submitted_by: submittedBy || "",
+    responses: uploadedValues,
+    photos: uploadedPhotos,
+  });
+  if (error) throw error;
+  return submissionId;
+}
