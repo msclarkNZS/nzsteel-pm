@@ -22,6 +22,7 @@ export default function ChecklistMode({ techName, onToast }) {
   const [values, setValues] = useState({});
   const [secIdx, setSecIdx] = useState(0);
   const [openComments, setOpenComments] = useState({}); // fieldId -> bool
+  const [matrixItems, setMatrixItems] = useState({});    // sectionId -> selected column (byItem)
   const [submitting, setSubmitting] = useState(false);
 
   const loadForms = useCallback(async () => {
@@ -47,6 +48,47 @@ export default function ChecklistMode({ techName, onToast }) {
     if (!file) return;
     try { const dataUrl = await compressImage(file, { maxDim: 1280, quality: 0.7 }); setV(key, dataUrl); }
     catch { note("Couldn't read photo"); }
+  };
+
+  // A single matrix cell (one column of a matrix check). Writes to
+  // `${fieldId}_matrix_${column}` (+ _comment / _commentPhoto on a Fail).
+  const renderMatrixControl = (f, col) => {
+    const base = `${f.id}_matrix_${col}`;
+    const cell = f.matrixCellType || "passfail";
+    if (cell === "checkbox") {
+      return <button className={`cf-toggle${values[base] ? " on" : ""}`} onClick={() => setV(base, !values[base])}>{values[base] ? "✓ Done" : "Mark done"}</button>;
+    }
+    if (cell === "number") {
+      return (
+        <div className="cf-numrow">
+          <input className="cf-input" type="number" inputMode="decimal" value={values[base] ?? ""} onChange={e => setV(base, e.target.value)} />
+          {f.unit && <span className="cf-unit">{f.unit}</span>}
+        </div>
+      );
+    }
+    if (cell === "text") {
+      return <input className="cf-input" value={values[base] ?? ""} onChange={e => setV(base, e.target.value)} placeholder="…" />;
+    }
+    // default passfail
+    const isFail = values[base] === "Fail";
+    return (
+      <>
+        <div className="cf-btnrow">
+          {["Pass", "Fail", ...(f.naAllowed ? ["N/A"] : [])].map(opt => (
+            <button key={opt} className={`cf-pf cf-pf-${opt.replace("/", "").toLowerCase()}${values[base] === opt ? " on" : ""}`} onClick={() => setV(base, opt)}>{opt}</button>
+          ))}
+        </div>
+        {isFail && (
+          <div className="cf-comment" style={{ marginTop: 6 }}>
+            <textarea className="cf-input" rows={2} value={values[`${base}_comment`] ?? ""} onChange={e => setV(`${base}_comment`, e.target.value)} placeholder="What's wrong?" />
+            <label className="cf-photo-btn">{values[`${base}_commentPhoto`] ? "✓ Photo — replace" : "📷 Attach photo"}
+              <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => readPhoto(e.target.files[0], `${base}_commentPhoto`)} />
+            </label>
+            {values[`${base}_commentPhoto`] && <img className="cf-thumb" src={values[`${base}_commentPhoto`]} alt="" />}
+          </div>
+        )}
+      </>
+    );
   };
 
   // ── Field renderer ──────────────────────────────────────────────────────────
@@ -133,9 +175,18 @@ export default function ChecklistMode({ techName, onToast }) {
           </div>
         );
       case "matrix":
-        return <div className="cf-soon">Per-item grid — coming soon (Batch C). Skipped for now.</div>;
+        return (
+          <div>
+            {(f.matrixColumns || []).map(col => (
+              <div className="cf-matrix-row" key={col}>
+                <div className="cf-matrix-col">{col}</div>
+                {renderMatrixControl(f, col)}
+              </div>
+            ))}
+          </div>
+        );
       case "markup":
-        return <div className="cf-soon">Photo mark-up — coming soon (Batch C).</div>;
+        return <div className="cf-soon">Photo mark-up — coming soon.</div>;
       default:
         return <input className="cf-input" value={values[key] ?? ""} onChange={e => setV(key, e.target.value)} />;
     }
@@ -163,6 +214,49 @@ export default function ChecklistMode({ techName, onToast }) {
     );
   };
 
+  // Render a section, honouring matrixOrientation.
+  const isMatrixField = (f) => f.kind === "check" && (f.responseTypes || []).includes("matrix");
+  const renderSection = (sec) => {
+    const fields = sec.fields || [];
+    if (sec.matrixOrientation === "byItem") {
+      const matrixFields = fields.filter(isMatrixField);
+      const otherFields = fields.filter(f => !isMatrixField(f));
+      const cols = [...new Set(matrixFields.flatMap(f => f.matrixColumns || []))];
+      const item = matrixItems[sec.id] || "";
+      return (
+        <>
+          {otherFields.map(renderField)}
+          {matrixFields.length > 0 && (
+            <div className="cf-field">
+              <div className="cf-label">Select item</div>
+              <div className="cf-item-picker">
+                {cols.map(c => (
+                  <button key={c} className={`cf-item-btn${item === c ? " on" : ""}`} onClick={() => setMatrixItems(m => ({ ...m, [sec.id]: c }))}>{c}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {item && (
+            <>
+              <div className="cf-scope-note">Showing checks for item {item}</div>
+              {matrixFields.filter(f => (f.matrixColumns || []).includes(item)).map(f => (
+                <div key={f.id} className="cf-field">
+                  <div className="cf-label">{f.label}{f.required && <span className="cf-req"> *</span>}</div>
+                  {f.helpText && <div className="cf-help">{f.helpText}</div>}
+                  {f.refDoc && (/^https?:/.test(f.refDoc)
+                    ? <a className="cf-ref" href={f.refDoc} target="_blank" rel="noreferrer">📎 {f.refDoc}</a>
+                    : <div className="cf-ref">📎 {f.refDoc}</div>)}
+                  <div className="cf-inputwrap">{renderMatrixControl(f, item)}</div>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      );
+    }
+    return fields.map(renderField);
+  };
+
   // ── Submit ────────────────────────────────────────────────────────────────
   const missingRequired = () => {
     const missing = [];
@@ -170,6 +264,10 @@ export default function ChecklistMode({ techName, onToast }) {
       if (f.kind !== "check" || !f.required) return;
       const has = (f.responseTypes || []).some(rt => {
         if (rt === "datetime") return values[`${f.id}_date`] || values[`${f.id}_time`];
+        if (rt === "matrix") {
+          const cols = f.matrixColumns || [];
+          return cols.length > 0 && cols.every(col => { const v = values[`${f.id}_matrix_${col}`]; return v !== undefined && v !== "" && v !== false; });
+        }
         const v = values[`${f.id}_${rt}`];
         return Array.isArray(v) ? v.length : (v !== undefined && v !== "" && v !== false);
       });
@@ -212,8 +310,17 @@ export default function ChecklistMode({ techName, onToast }) {
           <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
           {sections.length > 1 && <div className="cf-secname">{sec.title}</div>}
         </div>
+        {sections.length > 1 && (
+          <div className="cf-navigator">
+            {sections.map((s, i) => (
+              <button key={s.id || i} className={`cf-navchip${i === secIdx ? " on" : ""}`} onClick={() => { setSecIdx(i); window.scrollTo(0, 0); }}>
+                {i + 1}. {s.title || `Section ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="cf-body">
-          {(sec.fields || []).map(renderField)}
+          {renderSection(sec)}
         </div>
         <div className="cf-nav">
           {secIdx > 0 && <button className="btn-ghost cf-navbtn" onClick={() => { setSecIdx(i => i - 1); window.scrollTo(0, 0); }}>← Prev</button>}
