@@ -1083,6 +1083,23 @@ const css = `
     .hdr-user-chip { padding: 8px 10px; }
   }
 
+  /* ── Hub / mode selector ── */
+  .hub-screen { flex: 1; overflow-y: auto; padding: 28px 20px 40px; display: flex; flex-direction: column; align-items: center; }
+  .hub-greeting { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-primary); text-align: center; margin-bottom: 24px; letter-spacing: 0.5px; }
+  .hub-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; width: 100%; max-width: 720px; }
+  .hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--brand); border-radius: 12px; padding: 22px 20px; cursor: pointer; text-align: left; transition: all 0.15s; min-height: 128px; }
+  .hub-tile:hover { background: var(--bg-mid); border-left-color: var(--brand-light); transform: translateY(-2px); }
+  .hub-tile-icon { font-size: 34px; line-height: 1; }
+  .hub-tile-title { font-family: 'Roboto Condensed', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px; }
+  .hub-tile-sub { font-size: 13px; color: var(--text-dim); }
+  .hub-tile-soon { opacity: 0.45; cursor: not-allowed; border-left-color: var(--border-light); }
+  .hub-tile-soon:hover { transform: none; background: var(--bg-card); border-left-color: var(--border-light); }
+
+  .mode-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; text-align: center; }
+  .mode-placeholder-icon { font-size: 56px; }
+  .mode-placeholder-title { font-family: 'Roboto Condensed', sans-serif; font-size: 26px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px; }
+  .mode-placeholder-sub { font-size: 15px; color: var(--text-dim); max-width: 420px; line-height: 1.5; }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1135,6 +1152,7 @@ export default function App() {
 
   // Data
   const [screen, setScreen]     = useState("list");
+  const [appMode, setAppMode]   = useState(null); // null = hub; "lubrication" | "checklist" | "notification"
   const [rawData, setRawData]   = useState([]);
   const [columns, setColumns]   = useState([]);
   const [fieldMap, setFieldMap] = useState({});
@@ -2158,7 +2176,7 @@ export default function App() {
               <div className="hdr-brand-sub">Plant Maintenance</div>
             </div>
           </div>
-          {screen === "list" && (
+          {appMode === "lubrication" && screen === "list" && (
             <div className="hdr-center">
               <span className="stat-pill" style={{color:STATUS_META.done.color,background:STATUS_META.done.bg,border:`1px solid ${STATUS_META.done.border}44`}}>{done} Done</span>
               <span className="stat-pill" style={{color:STATUS_META.skipped.color,background:STATUS_META.skipped.bg,border:`1px solid ${STATUS_META.skipped.border}44`}}>{skipped} Not Done</span>
@@ -2175,10 +2193,11 @@ export default function App() {
             </div>
           )}
           <div className="hdr-right">
-            {screen === "list" && <button className="btn-ghost" onClick={()=>{setScreen("upload");setTasks([]);clearSession();}}>↑ New File</button>}
+            {appMode && screen !== "settings" && <button className="hdr-icon-btn" title="Home" onClick={()=>setAppMode(null)}>⌂</button>}
+            {appMode === "lubrication" && screen === "list" && <button className="btn-ghost" onClick={()=>{setScreen("upload");setTasks([]);clearSession();}}>↑ New File</button>}
             {screen !== "settings"
               ? <button className="hdr-icon-btn" title="Settings" onClick={()=>setScreen("settings")}>⚙</button>
-              : <button className="btn-ghost" onClick={()=>setScreen(tasks.length>0?"list":"upload")}>← Back</button>
+              : <button className="btn-ghost" onClick={()=>setScreen(appMode==="lubrication" && tasks.length===0 ? "upload" : "list")}>← Back</button>
             }
             {signOutConfirm ? (
               <div style={{display:"flex",gap:6}}>
@@ -2195,7 +2214,7 @@ export default function App() {
           </div>
         </header>
 
-        {screen !== "settings" && (
+        {screen !== "settings" && appMode && (
           <div className={`net-banner ${netStatus}`}>
             <div className="net-dot"/>
             <span className="net-msg">
@@ -2206,8 +2225,57 @@ export default function App() {
           </div>
         )}
 
+        {/* ══ Hub / mode selector ══ */}
+        {appMode === null && screen !== "settings" && (
+          <div className="hub-screen">
+            <div className="hub-greeting">Hi {techName.split(" ")[0]} — what are you doing today?</div>
+            <div className="hub-tiles">
+              <button className="hub-tile" onClick={()=>{ setAppMode("lubrication"); setScreen(tasks.length>0?"list":"upload"); }}>
+                <div className="hub-tile-icon">🛢</div>
+                <div className="hub-tile-title">Lubrication</div>
+                <div className="hub-tile-sub">Greasing worklist — load, complete, sync</div>
+              </button>
+              <button className="hub-tile" onClick={()=>setAppMode("checklist")}>
+                <div className="hub-tile-icon">☑</div>
+                <div className="hub-tile-title">Checklist</div>
+                <div className="hub-tile-sub">Digital check sheets &amp; inspections</div>
+              </button>
+              <button className="hub-tile" onClick={()=>setAppMode("notification")}>
+                <div className="hub-tile-icon">🔔</div>
+                <div className="hub-tile-title">Raise Notification</div>
+                <div className="hub-tile-sub">Report an issue with photos</div>
+              </button>
+              <button className="hub-tile hub-tile-soon" disabled>
+                <div className="hub-tile-icon">🛠</div>
+                <div className="hub-tile-title">Planned Maintenance</div>
+                <div className="hub-tile-sub">Coming soon</div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ Checklist (placeholder — Batch B) ══ */}
+        {appMode === "checklist" && screen !== "settings" && (
+          <div className="mode-placeholder">
+            <div className="mode-placeholder-icon">☑</div>
+            <div className="mode-placeholder-title">Checklist</div>
+            <div className="mode-placeholder-sub">Digital check sheets are coming next. This is where you'll pick an approved form and fill it in.</div>
+            <button className="btn-primary" onClick={()=>setAppMode(null)}>← Back to menu</button>
+          </div>
+        )}
+
+        {/* ══ Raise Notification (placeholder — Batch D) ══ */}
+        {appMode === "notification" && screen !== "settings" && (
+          <div className="mode-placeholder">
+            <div className="mode-placeholder-icon">🔔</div>
+            <div className="mode-placeholder-title">Raise Notification</div>
+            <div className="mode-placeholder-sub">Standalone issue reporting is coming soon. For now, notifications are raised from within a Lubrication task.</div>
+            <button className="btn-primary" onClick={()=>setAppMode(null)}>← Back to menu</button>
+          </div>
+        )}
+
         {/* ══ Upload ══ */}
-        {screen === "upload" && (
+        {appMode === "lubrication" && screen === "upload" && (
           <div className="upload-screen">
             <div className="upload-hero">Plant Maintenance<br/><span>Work List</span></div>
             {settings.sourceUrl && (
@@ -2234,7 +2302,7 @@ export default function App() {
         )}
 
         {/* ══ Map columns ══ */}
-        {screen === "map" && (
+        {appMode === "lubrication" && screen === "map" && (
           <div className="mapper-screen">
             <div className="mapper-title">Confirm Column Mapping</div>
             <div className="mapper-card">
@@ -2675,7 +2743,7 @@ export default function App() {
         )}
 
         {/* ══ Main list ══ */}
-        {screen === "list" && (
+        {appMode === "lubrication" && screen === "list" && (
           <div className="list-layout">
             {(() => {
               const newer = latestWorklist && !worklistAlertDismissed && (
