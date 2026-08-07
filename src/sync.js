@@ -305,6 +305,15 @@ export async function listApprovedForms() {
   return data || [];
 }
 
+// All forms (any status) — used to diagnose why nothing shows and to match
+// status case-insensitively on the client.
+export async function listForms() {
+  const { data, error } = await supabase
+    .from("forms").select("*").order("title", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 // Sweep an object for base64 images, upload each to the private bucket, and
 // replace with a long-lived signed URL. Non-image values pass through.
 async function uploadDataUrlsInObject(obj, basePath) {
