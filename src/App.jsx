@@ -5,6 +5,7 @@ import { compressImage } from "./photo.js";
 import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
 import StoragePanel from "./StoragePanel.jsx";
+import ChecklistMode from "./ChecklistMode.jsx";
 import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig, pushProgress, pullProgress } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
@@ -1100,6 +1101,56 @@ const css = `
   .mode-placeholder-title { font-family: 'Roboto Condensed', sans-serif; font-size: 26px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px; }
   .mode-placeholder-sub { font-size: 15px; color: var(--text-dim); max-width: 420px; line-height: 1.5; }
 
+  /* ── Checklist mode ── */
+  .cf-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .cf-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .cf-listhdr, .cf-formtitle { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-primary); }
+  .cf-formhdr { padding: 14px 16px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .cf-formmeta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .cf-secname { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--accent); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .cf-taghdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+  .cf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .cf-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--brand); border-radius: 10px; padding: 16px; cursor: pointer; text-align: left; }
+  .cf-card:hover { background: var(--bg-mid); }
+  .cf-card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+  .cf-card-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+  .cf-err { color: #fca5a5; background: #200808; border: 1px solid #dc2626; border-radius: 8px; padding: 10px 14px; font-size: 13px; }
+
+  .cf-field { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cf-label { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .cf-req { color: #f87171; }
+  .cf-help { font-size: 13px; color: var(--text-dim); }
+  .cf-ref { font-size: 12px; color: var(--accent); text-decoration: none; }
+  .cf-refphoto { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+  .cf-inputwrap { margin-top: 2px; }
+  .cf-input { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 16px; font-family: 'Roboto', sans-serif; outline: none; }
+  .cf-input:focus { border-color: var(--brand); }
+  .cf-numrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .cf-numrow .cf-input { flex: 1; min-width: 120px; }
+  .cf-unit { color: var(--text-dim); font-size: 14px; }
+  .cf-btnrow { display: flex; gap: 8px; }
+  .cf-pf { flex: 1; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 8px; padding: 14px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; min-height: 52px; }
+  .cf-pf-pass.on { background: #15803d; color: #fff; border-color: #15803d; }
+  .cf-pf-fail.on { background: #991b1b; color: #fff; border-color: #991b1b; }
+  .cf-pf-na.on { background: #4b5563; color: #fff; border-color: #4b5563; }
+  .cf-toggle { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 8px; padding: 12px 18px; font-weight: 700; cursor: pointer; min-height: 48px; }
+  .cf-toggle.on { background: #15803d; color: #fff; border-color: #15803d; }
+  .cf-chips, .cf-stars { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cf-chip { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim); border-radius: 20px; padding: 8px 14px; cursor: pointer; font-size: 14px; min-height: 40px; }
+  .cf-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .cf-star { background: none; border: none; font-size: 30px; color: var(--border-light); cursor: pointer; line-height: 1; padding: 0 2px; }
+  .cf-star.on { color: #fbbf24; }
+  .cf-comment { display: flex; flex-direction: column; gap: 8px; }
+  .cf-addcomment { align-self: flex-start; background: none; border: 1px dashed var(--border-light); color: var(--text-dim); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  .cf-photo-btn { align-self: flex-start; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
+  .cf-thumb { max-width: 160px; border-radius: 8px; border: 1px solid var(--border); }
+  .cf-info { background: #0e2036; border: 1px solid #1e3a5f; border-left: 4px solid var(--brand); border-radius: 10px; padding: 14px; }
+  .cf-info-title { font-weight: 700; color: var(--accent); }
+  .cf-info-body { font-size: 14px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  .cf-soon { font-size: 13px; color: #fbbf24; background: #201808; border: 1px dashed #d97706; border-radius: 8px; padding: 10px 14px; }
+  .cf-nav { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: var(--bg-bar); flex-shrink: 0; }
+  .cf-navbtn { flex: 1; min-height: 52px; }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1408,6 +1459,7 @@ export default function App() {
   const handleSignOut = () => {
     if (msalInstance && authAccount) msalInstance.logoutPopup({ account: authAccount }).catch(() => {});
     setAuthAccount(null); setManualAuthed(false); setManualName(""); setSignOutConfirm(false);
+    setAppMode(null);
     clearAuth();
     showToast("Signed out");
   };
@@ -1417,6 +1469,7 @@ export default function App() {
     const name = manualName.trim();
     if (!name) return;
     setManualAuthed(true);
+    setAppMode(null);
     saveAuth({ manualName: name });
   };
 
@@ -2254,14 +2307,9 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ Checklist (placeholder — Batch B) ══ */}
+        {/* ══ Checklist ══ */}
         {appMode === "checklist" && screen !== "settings" && (
-          <div className="mode-placeholder">
-            <div className="mode-placeholder-icon">☑</div>
-            <div className="mode-placeholder-title">Checklist</div>
-            <div className="mode-placeholder-sub">Digital check sheets are coming next. This is where you'll pick an approved form and fill it in.</div>
-            <button className="btn-primary" onClick={()=>setAppMode(null)}>← Back to menu</button>
-          </div>
+          <ChecklistMode techName={techName} onToast={showToast} />
         )}
 
         {/* ══ Raise Notification (placeholder — Batch D) ══ */}
