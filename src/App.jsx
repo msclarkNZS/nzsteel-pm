@@ -6,7 +6,8 @@ import SyncPanel from "./SyncPanel.jsx";
 import SupervisorPanel from "./SupervisorPanel.jsx";
 import StoragePanel from "./StoragePanel.jsx";
 import ChecklistMode from "./ChecklistMode.jsx";
-import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig, pushProgress, pullProgress } from "./sync.js";
+import PhotoMarkup from "./PhotoMarkup.jsx";
+import { getRoster, getLatestWorklist, downloadWorklist, downloadFlocFile, getConfig, saveConfig, pushProgress, pullProgress, pushResult } from "./sync.js";
 
 // ─── MSAL CDN injection ───────────────────────────────────────────────────────
 function injectMsal(callback) {
@@ -1169,6 +1170,37 @@ const css = `
   .cf-item-btn.done { border-color: #15803d; }
   .cf-scope-note { font-size: 13px; color: var(--cfaccent); font-weight: 700; margin-bottom: 6px; }
 
+  /* ── Photo markup editor ── */
+  .mk-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 500; display: flex; align-items: center; justify-content: center; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  .mk-panel { width: 100%; max-width: 900px; height: 100%; display: flex; flex-direction: column; background: #0b1016; }
+  .mk-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; background: #16202e; border-bottom: 1px solid #2b3d52; }
+  .mk-colours, .mk-widths, .mk-tools { display: flex; gap: 8px; align-items: center; }
+  .mk-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #2b3d52; cursor: pointer; padding: 0; }
+  .mk-swatch.on { border-color: #fff; box-shadow: 0 0 0 2px #3b9dff; }
+  .mk-width { width: 34px; height: 34px; border-radius: 8px; border: 1px solid #2b3d52; background: #0e1826; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .mk-width.on { border-color: #3b9dff; }
+  .mk-width span { display: block; background: #eaf1f8; border-radius: 50%; }
+  .mk-tools { margin-left: auto; }
+  .mk-btn { background: #0e1826; border: 1px solid #3f5674; color: #eaf1f8; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; min-height: 44px; }
+  .mk-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .mk-canvas-wrap { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 12px; touch-action: none; }
+  .mk-canvas { max-width: 100%; max-height: 100%; touch-action: none; background: #000; border-radius: 6px; cursor: crosshair; }
+  .mk-loading { color: #a6bace; }
+  .mk-actions { display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: #16202e; border-top: 1px solid #2b3d52; }
+  .mk-actions .mk-btn { flex: 1; min-height: 52px; font-size: 16px; }
+  .mk-cancel { background: #0e1826; }
+  .mk-save { background: #15803d; border-color: #15803d; }
+
+  /* ── Raise Notification mode ── */
+  .notifmode-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .notifmode-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .notifmode-raise { background: #92400e; color: #fff; border: none; border-radius: 10px; font-family: 'Roboto Condensed', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 20px; cursor: pointer; min-height: 68px; margin-bottom: 6px; }
+  .notifmode-raise:hover { background: #b45309; }
+  .notifmode-hdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }
+  .notifmode-card { display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+  .notifmode-del { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; flex-shrink: 0; }
+  .notifmode-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: var(--bg-bar); flex-shrink: 0; }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1309,6 +1341,9 @@ export default function App() {
   const [notifFormPhotos, setNotifFormPhotos]    = useState([]); // array of dataURLs
   const [viewingNotif, setViewingNotif]          = useState(null); // notification id for detail view
   const photoInputRef = useRef();
+  const [markupTarget, setMarkupTarget] = useState(null); // { src, onSave } — opens PhotoMarkup
+  const [pushingNotif, setPushingNotif] = useState(false);
+  const openMarkup = (src, onSave) => setMarkupTarget({ src, onSave });
 
   // Apply theme on mount and whenever it changes
   useEffect(() => { applyTheme(settings.theme || "nzsteel-dark"); }, [settings.theme]);
@@ -2043,6 +2078,46 @@ export default function App() {
     return files;
   }, [tasks, notifications, techName]);
 
+  // Notifications-only bundle (for the standalone Raise Notification mode push).
+  const getNotificationFiles = useCallback(() => {
+    if (!notifications.length) return [];
+    const files = [];
+    const photoNamesByNotif = notifications.map((n, ni) => {
+      const locSlug = (n.functLocation || "loc").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      return n.photos.map((dataUrl, pi) => {
+        const name = `photo_${locSlug}_n${ni + 1}_${pi + 1}.jpg`;
+        files.push({ name, blob: dataURLtoBlob(dataUrl) });
+        return name;
+      });
+    });
+    const nRows = notifications.map((n, ni) => ({
+      Type: n.type === "issue" ? "Task Issue" : "Notification",
+      Title: n.title, Description: n.description,
+      FunctionalLocation: n.functLocation, LocationDesc: n.functLocationDesc,
+      LinkedTaskId: n.taskId, RaisedBy: n.createdBy,
+      RaisedAt: n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
+      PhotoCount: n.photos.length, PhotoFiles: photoNamesByNotif[ni].join("; ")
+    }));
+    const ws = XLSX.utils.json_to_sheet(nRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Notifications");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    files.push({ name: `notifications_${techName}.xlsx`, blob: new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) });
+    return files;
+  }, [notifications, techName]);
+
+  const pushNotifications = async () => {
+    if (!notifications.length) { showToast("No notifications to send"); return; }
+    if (netStatus !== "online") { showToast("📴 Offline — send when back online"); return; }
+    setPushingNotif(true);
+    try {
+      await pushResult(techName, getNotificationFiles());
+      showToast(`✓ Sent ${notifications.length} notification(s) to supervisor`);
+      setNotifications([]);
+    } catch (e) { showToast("❌ Send failed: " + (e.message || e)); }
+    setPushingNotif(false);
+  };
+
   const exportNotifications = (filterFn, filename) => {
     const rows = notifications.filter(filterFn).map(n => ({
       "Type": n.type === "issue" ? "Task Issue" : "Notification",
@@ -2327,16 +2402,32 @@ export default function App() {
 
         {/* ══ Checklist ══ */}
         {appMode === "checklist" && screen !== "settings" && (
-          <ChecklistMode techName={techName} onToast={showToast} />
+          <ChecklistMode techName={techName} onToast={showToast} onMarkup={openMarkup} />
         )}
 
-        {/* ══ Raise Notification (placeholder — Batch D) ══ */}
+        {/* ══ Raise Notification (standalone) ══ */}
         {appMode === "notification" && screen !== "settings" && (
-          <div className="mode-placeholder">
-            <div className="mode-placeholder-icon">🔔</div>
-            <div className="mode-placeholder-title">Raise Notification</div>
-            <div className="mode-placeholder-sub">Standalone issue reporting is coming soon. For now, notifications are raised from within a Lubrication task.</div>
-            <button className="btn-primary" onClick={()=>setAppMode(null)}>← Back to menu</button>
+          <div className="notifmode-screen">
+            <div className="notifmode-body">
+              <button className="notifmode-raise" onClick={()=>openNotifForm("notification", null)}>🔔 Raise a Notification</button>
+              <div className="notifmode-hdr">Not yet sent ({notifications.length})</div>
+              {notifications.length === 0 && <div className="settings-desc">Nothing raised yet. Tap the button above to report an issue with photos.</div>}
+              {notifications.map(n => (
+                <div key={n.id} className="notifmode-card" onClick={()=>setViewingNotif(n.id)}>
+                  <span className="notif-type-badge" style={n.type==="issue"?{color:"#f87171",background:"#2a0a0a"}:{color:"#fbbf24",background:"#1c1400"}}>{n.type==="issue"?"Issue":"Notif"}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="notif-log-title">{n.title}</div>
+                    <div className="notif-log-meta">{n.functLocationDesc||n.functLocation||"No location"} · {n.photos.length} photo(s)</div>
+                  </div>
+                  <button onClick={(e)=>{e.stopPropagation(); setNotifications(prev=>prev.filter(x=>x.id!==n.id));}} className="notifmode-del">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="notifmode-foot">
+              <button className="btn-primary" style={{width:"100%",minHeight:56}} disabled={pushingNotif||notifications.length===0} onClick={pushNotifications}>
+                {pushingNotif ? "Sending…" : `⬆ Send ${notifications.length||""} to supervisor`}
+              </button>
+            </div>
           </div>
         )}
 
@@ -3321,6 +3412,8 @@ export default function App() {
                     {notifFormPhotos.map((src,i) => (
                       <div key={i} style={{position:"relative"}}>
                         <img src={src} className="photo-thumb" alt={`Photo ${i+1}`}/>
+                        <button onClick={()=>openMarkup(src, (nu)=>setNotifFormPhotos(p=>p.map((x,j)=>j===i?nu:x)))}
+                          style={{position:"absolute",bottom:-6,right:-6,background:"#3b9dff",border:"none",borderRadius:"50%",width:22,height:22,color:"white",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}} title="Mark up">✏️</button>
                         <button onClick={()=>setNotifFormPhotos(p=>p.filter((_,j)=>j!==i))}
                           style={{position:"absolute",top:-6,right:-6,background:"#dc2626",border:"none",borderRadius:"50%",width:20,height:20,color:"white",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
                       </div>
@@ -3465,6 +3558,16 @@ export default function App() {
             </div>
           );
         })()}
+
+        {toast && <div className="toast">{toast}</div>}
+
+        {markupTarget && (
+          <PhotoMarkup
+            src={markupTarget.src}
+            onCancel={() => setMarkupTarget(null)}
+            onSave={(dataUrl) => { markupTarget.onSave(dataUrl); setMarkupTarget(null); }}
+          />
+        )}
       </div>
     </>
   );
