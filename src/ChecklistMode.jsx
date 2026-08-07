@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { listForms, submitForm } from "./sync.js";
 import { compressImage } from "./photo.js";
+import { saveDraft, listDrafts, deleteDraft } from "./storage.js";
 
 export default function ChecklistMode({ techName, onToast }) {
   const note = (m) => onToast && onToast(m);
@@ -24,6 +25,8 @@ export default function ChecklistMode({ techName, onToast }) {
   const [openComments, setOpenComments] = useState({}); // fieldId -> bool
   const [matrixItems, setMatrixItems] = useState({});    // sectionId -> selected column (byItem)
   const [submitting, setSubmitting] = useState(false);
+  const [draftId, setDraftId] = useState(null);
+  const [drafts, setDrafts] = useState([]);
 
   const loadForms = useCallback(async () => {
     setLoading(true); setErr("");
@@ -33,13 +36,44 @@ export default function ChecklistMode({ techName, onToast }) {
       setForms(rows.filter(r => String(r.status || "").trim().toLowerCase() === "approved"));
     } catch (e) { setErr(e.message || String(e)); }
     setLoading(false);
+    try { setDrafts(await listDrafts()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { loadForms(); }, [loadForms]);
 
   const openForm = (row) => {
     const data = row.data || row;
     setForm({ ...data, id: data.id || row.id });
-    setValues({}); setSecIdx(0); setOpenComments({}); setStage("fill");
+    setValues({}); setSecIdx(0); setOpenComments({}); setMatrixItems({});
+    setDraftId(crypto.randomUUID ? crypto.randomUUID() : "d" + Date.now());
+    setStage("fill");
+  };
+
+  const resumeDraft = (d) => {
+    setForm(d.form);
+    setValues(d.values || {});
+    setMatrixItems(d.matrixItems || {});
+    setSecIdx(d.secIdx || 0);
+    setOpenComments({});
+    setDraftId(d.id);
+    setStage("fill");
+  };
+
+  const saveCurrentDraft = async () => {
+    if (!form) return;
+    const ok = await saveDraft({
+      id: draftId, form, formTitle: form.title,
+      values, matrixItems, secIdx,
+      savedAt: new Date().toISOString(), by: techName,
+      answerCount: Object.keys(values).length
+    });
+    note(ok ? "💾 Draft saved" : "Couldn't save draft");
+    try { setDrafts(await listDrafts()); } catch { /* ignore */ }
+  };
+
+  const removeDraft = async (id) => {
+    if (!window.confirm("Delete this saved draft?")) return;
+    await deleteDraft(id);
+    try { setDrafts(await listDrafts()); } catch { /* ignore */ }
   };
 
   const setV = (key, val) => setValues(v => ({ ...v, [key]: val }));
@@ -282,6 +316,7 @@ export default function ChecklistMode({ techName, onToast }) {
     setSubmitting(true);
     try {
       await submitForm({ form, values, photos: {}, submittedBy: techName });
+      if (draftId) { await deleteDraft(draftId); try { setDrafts(await listDrafts()); } catch { /* ignore */ } }
       setStage("done");
     } catch (e) { note("❌ Submit failed: " + (e.message || e)); }
     setSubmitting(false);
@@ -306,8 +341,13 @@ export default function ChecklistMode({ techName, onToast }) {
     return (
       <div className="cf-screen">
         <div className="cf-formhdr">
-          <div className="cf-formtitle">{form.title}</div>
-          <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
+            <div style={{minWidth:0}}>
+              <div className="cf-formtitle">{form.title}</div>
+              <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
+            </div>
+            <button className="cf-savebtn" onClick={saveCurrentDraft}>💾 Save draft</button>
+          </div>
           {sections.length > 1 && <div className="cf-secname">{sec.title}</div>}
         </div>
         {sections.length > 1 && (
@@ -343,6 +383,23 @@ export default function ChecklistMode({ techName, onToast }) {
   return (
     <div className="cf-screen">
       <div className="cf-body">
+        {drafts.length > 0 && (
+          <div style={{ marginBottom: 6 }}>
+            <div className="cf-taghdr">Saved drafts</div>
+            <div className="cf-cards">
+              {drafts.map(d => (
+                <div key={d.id} className="cf-card" style={{ borderLeftColor: "#fbbf24", cursor: "default" }}>
+                  <div className="cf-card-title">{d.formTitle}</div>
+                  <div className="cf-card-sub">Saved {new Date(d.savedAt).toLocaleString()} · {d.answerCount || 0} answer(s)</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button className="cf-pf" style={{ minHeight: 40, fontSize: 13 }} onClick={() => resumeDraft(d)}>▶ Resume</button>
+                    <button className="cf-pf" style={{ minHeight: 40, fontSize: 13, flex: "0 0 auto", padding: "0 14px" }} onClick={() => removeDraft(d.id)}>🗑</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="cf-listhdr">Select a checklist</div>
         {loading && <div className="settings-desc">Loading…</div>}
         {err && <div className="cf-err">⚠ Could not load forms: {err}</div>}
