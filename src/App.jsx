@@ -1108,6 +1108,12 @@ const css = `
   .cf-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
   .cf-listhdr, .cf-formtitle { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--cftext); }
   .cf-formhdr { padding: 14px 16px; background: var(--cfsurface); border-bottom: 1px solid var(--cfborder); flex-shrink: 0; }
+  .cf-formhdr-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .cf-formhdr-titles { min-width: 0; }
+  .cf-formhdr-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .cf-hdrbtn { background: var(--cfinput); border: 1px solid var(--cfborderlt); color: var(--cftext); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; min-height: 38px; white-space: nowrap; }
+  .cf-hdrbtn:hover { border-color: var(--cfaccent); }
+  .cf-hdrsave { color: var(--cfaccent); border-color: var(--cfaccent); }
   .cf-formmeta { font-size: 12px; color: var(--cfdim); margin-top: 2px; }
   .cf-secname { font-family: 'Roboto Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--cftext); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
   .cf-taghdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--cffaint); margin-bottom: 8px; }
