@@ -1156,8 +1156,11 @@ const css = `
   .cf-info-body { font-size: 14px; color: var(--cftext); margin-top: 4px; line-height: 1.5; }
   .cf-soon { font-size: 13px; color: #8a5a00; background: #fff6e5; border: 1px dashed #e0a94a; border-radius: 8px; padding: 10px 14px; }
   .cf-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
-  .cf-navbtn { flex: 1 1 40%; min-width: 92px; min-height: 52px; }
-  .cf-navsave { color: #8a5a00 !important; }
+  .cf-navbtn { flex: 1 1 40%; min-width: 92px; min-height: 52px; border-radius: 8px; }
+  .cf-nav .btn-ghost { background: var(--cfinput); color: var(--cftext); border: 1px solid var(--cfborderlt); font-weight: 700; }
+  .cf-nav .btn-ghost:hover { border-color: var(--cfaccent); color: var(--cfaccent); }
+  .cf-nav .btn-primary { border: 1px solid rgba(0,0,0,0.2); }
+  .cf-navsave { color: var(--cfaccent) !important; border-color: var(--cfaccent) !important; }
   .cf-savebtn { flex-shrink: 0; background: var(--cfinput); border: 1px solid var(--cfborderlt); color: var(--cftext); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; min-height: 40px; white-space: nowrap; }
   .cf-savebtn:hover { border-color: var(--cfaccent); }
 
