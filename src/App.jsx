@@ -1119,6 +1119,17 @@ const css = `
   .cf-taghdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--cffaint); margin-bottom: 8px; }
   .cf-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
   .cf-card { background: var(--cfsurface); border: 1px solid var(--cfborder); border-left: 4px solid var(--cfaccent); border-radius: 10px; padding: 16px; cursor: pointer; text-align: left; }
+  .cf-search { margin-bottom: 4px; }
+  .cf-listsec { margin-bottom: 16px; }
+  .cf-list { display: flex; flex-direction: column; border: 1px solid var(--cfborder); border-radius: 10px; overflow: hidden; }
+  .cf-row { display: flex; align-items: center; gap: 10px; padding: 13px 14px; background: var(--cfinput); border-bottom: 1px solid var(--cfborder); cursor: pointer; }
+  .cf-row:last-child { border-bottom: none; }
+  .cf-row:hover { background: #eef3f9; }
+  .cf-row-main { flex: 1; min-width: 0; }
+  .cf-row-title { font-size: 15px; font-weight: 600; color: var(--cftext); }
+  .cf-row-sub { font-size: 12px; color: var(--cfdim); margin-top: 2px; }
+  .cf-star-btn { background: none; border: none; font-size: 22px; color: var(--cfborderlt); cursor: pointer; flex-shrink: 0; line-height: 1; padding: 4px; min-width: 44px; min-height: 44px; }
+  .cf-star-btn.on { color: #f5b301; }
   .cf-card:hover { background: #eef3f9; }
   .cf-card-title { font-size: 16px; font-weight: 600; color: var(--cftext); }
   .cf-card-sub { font-size: 12px; color: var(--cfdim); margin-top: 3px; }
