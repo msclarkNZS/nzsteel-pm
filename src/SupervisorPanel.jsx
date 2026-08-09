@@ -18,8 +18,12 @@ function parseFolder(folder) {
   const [rawName, stamp = ""] = folder.split("__");
   const tech = (rawName || "tech").replace(/_/g, " ");
   let when = stamp;
-  const m = stamp.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})/);
-  if (m) when = `${m[1]} ${m[2]}:${m[3]}`;
+  const m = stamp.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+  if (m) {
+    const iso = `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`;
+    try { when = new Date(iso).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland" }); }
+    catch { when = `${m[1]} ${m[2]}:${m[3]}`; }
+  }
   return { tech, when };
 }
 
