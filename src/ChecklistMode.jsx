@@ -27,6 +27,17 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
   const [submitting, setSubmitting] = useState(false);
   const [draftId, setDraftId] = useState(null);
   const [drafts, setDrafts] = useState([]);
+  const [search, setSearch] = useState("");
+  const [favs, setFavs] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("nzsteel-fav-forms") || "[]")); } catch { return new Set(); }
+  });
+  const toggleFav = (id) => {
+    setFavs(prev => {
+      const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id);
+      try { localStorage.setItem("nzsteel-fav-forms", JSON.stringify([...n])); } catch { /* ignore */ }
+      return n;
+    });
+  };
 
   const loadForms = useCallback(async () => {
     setLoading(true); setErr("");
@@ -391,11 +402,29 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
   }
 
   // list stage
+  const q = search.trim().toLowerCase();
+  const matches = (row) => {
+    if (!q) return true;
+    const tags = Array.isArray(row.tags) ? row.tags.join(" ") : (row.tags || "");
+    return `${row.title} ${row.doc_ref || ""} ${tags}`.toLowerCase().includes(q);
+  };
+  const visible = forms.filter(matches);
+  const favForms = visible.filter(r => favs.has(r.id));
   const byTag = {};
-  forms.forEach(row => {
-    const tags = row.tags && row.tags.length ? row.tags : ["Other"];
-    (Array.isArray(tags) ? tags : [tags]).forEach(t => { (byTag[t] = byTag[t] || []).push(row); });
+  visible.filter(r => !favs.has(r.id)).forEach(row => {
+    const tags = row.tags && row.tags.length ? (Array.isArray(row.tags) ? row.tags : [row.tags]) : ["Other"];
+    tags.forEach(t => { (byTag[t] = byTag[t] || []).push(row); });
   });
+
+  const Row = (row) => (
+    <div key={row.id} className="cf-row" onClick={() => openForm(row)}>
+      <div className="cf-row-main">
+        <div className="cf-row-title">{row.title}</div>
+        <div className="cf-row-sub">{row.doc_ref ? row.doc_ref + " · " : ""}v{row.version || "1.0"}</div>
+      </div>
+      <button className={`cf-star-btn${favs.has(row.id) ? " on" : ""}`} title="Favourite" onClick={(e) => { e.stopPropagation(); toggleFav(row.id); }}>{favs.has(row.id) ? "★" : "☆"}</button>
+    </div>
+  );
 
   return (
     <div className="cf-screen">
@@ -405,7 +434,7 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
             <div className="cf-taghdr">Saved drafts</div>
             <div className="cf-cards">
               {drafts.map(d => (
-                <div key={d.id} className="cf-card" style={{ borderLeftColor: "#fbbf24", cursor: "default" }}>
+                <div key={d.id} className="cf-card" style={{ borderLeftColor: "#f5b301", cursor: "default" }}>
                   <div className="cf-card-title">{d.formTitle}</div>
                   <div className="cf-card-sub">Saved {new Date(d.savedAt).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland" })} · {d.answerCount || 0} answer(s)</div>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -417,29 +446,44 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
             </div>
           </div>
         )}
+
         <div className="cf-listhdr">Select a checklist</div>
+        <input className="cf-input cf-search" placeholder="🔍 Search by name, doc ref or tag…" value={search} onChange={e => setSearch(e.target.value)} />
+
         {loading && <div className="settings-desc">Loading…</div>}
         {err && <div className="cf-err">⚠ Could not load forms: {err}</div>}
         {!loading && !err && forms.length === 0 && (
           allForms.length === 0
-            ? <div className="cf-err" style={{color:"#fbbf24",background:"#201808",borderColor:"#d97706"}}>No forms are visible to this app. Either none have been created, or the app doesn't have read access to the <code>forms</code> table (check the RLS policy for the <code>anon</code> role).</div>
-            : <div className="cf-err" style={{color:"#fbbf24",background:"#201808",borderColor:"#d97706"}}>
+            ? <div className="cf-err" style={{color:"#8a5a00",background:"#fff6e5",borderColor:"#e0a94a"}}>No forms are visible to this app. Either none have been created, or the app doesn't have read access to the <code>forms</code> table (check the RLS policy for the <code>anon</code> role).</div>
+            : <div className="cf-err" style={{color:"#8a5a00",background:"#fff6e5",borderColor:"#e0a94a"}}>
                 Found {allForms.length} form(s), but none are <strong>Approved</strong>. Statuses present: {[...new Set(allForms.map(f => f.status || "(none)"))].join(", ")}. Only approved checklists appear here — approve it in the Form Builder.
               </div>
         )}
-        {Object.keys(byTag).sort().map(tag => (
-          <div key={tag} style={{ marginBottom: 18 }}>
-            <div className="cf-taghdr">{tag}</div>
-            <div className="cf-cards">
-              {byTag[tag].map(row => (
-                <button key={row.id} className="cf-card" onClick={() => openForm(row)}>
-                  <div className="cf-card-title">{row.title}</div>
-                  <div className="cf-card-sub">{row.doc_ref ? row.doc_ref + " · " : ""}v{row.version || "1.0"}</div>
-                </button>
-              ))}
+        {!loading && !err && forms.length > 0 && visible.length === 0 && <div className="settings-desc">No checklists match "{search}".</div>}
+
+        {q ? (
+          visible.length > 0 && (
+            <div className="cf-listsec">
+              <div className="cf-taghdr">{visible.length} result{visible.length !== 1 ? "s" : ""}</div>
+              <div className="cf-list">{visible.map(Row)}</div>
             </div>
-          </div>
-        ))}
+          )
+        ) : (
+          <>
+            {favForms.length > 0 && (
+              <div className="cf-listsec">
+                <div className="cf-taghdr">★ Favourites</div>
+                <div className="cf-list">{favForms.map(Row)}</div>
+              </div>
+            )}
+            {Object.keys(byTag).sort().map(tag => (
+              <div key={tag} className="cf-listsec">
+                <div className="cf-taghdr">{tag}</div>
+                <div className="cf-list">{byTag[tag].map(Row)}</div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
