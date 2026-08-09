@@ -1155,8 +1155,9 @@ const css = `
   .cf-info-title { font-weight: 700; color: var(--cfaccent); }
   .cf-info-body { font-size: 14px; color: #cdddec; margin-top: 4px; line-height: 1.5; }
   .cf-soon { font-size: 13px; color: #fbbf24; background: #201808; border: 1px dashed #d97706; border-radius: 8px; padding: 10px 14px; }
-  .cf-nav { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
-  .cf-navbtn { flex: 1; min-height: 52px; }
+  .cf-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
+  .cf-navbtn { flex: 1 1 40%; min-width: 92px; min-height: 52px; }
+  .cf-navsave { color: #fbbf24 !important; }
   .cf-savebtn { flex-shrink: 0; background: var(--cfinput); border: 1px solid var(--cfborderlt); color: var(--cftext); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; min-height: 40px; white-space: nowrap; }
   .cf-savebtn:hover { border-color: var(--cfaccent); }
 
@@ -1209,6 +1210,11 @@ const css = `
 // Build stamp injected at build time by Vite (see vite.config.js define). Falls
 // back to "dev" during local validation when the define isn't present.
 const APP_BUILD = (typeof __APP_BUILD__ !== "undefined") ? __APP_BUILD__ : "dev";
+
+// All user-facing times are shown in NZ local time regardless of device timezone.
+const NZ_TZ = "Pacific/Auckland";
+function fmtNZ(iso) { try { return iso ? new Date(iso).toLocaleString("en-NZ", { timeZone: NZ_TZ }) : ""; } catch { return ""; } }
+function fmtNZTime(d = new Date()) { try { return d.toLocaleTimeString("en-NZ", { timeZone: NZ_TZ }); } catch { return d.toLocaleTimeString(); } }
 
 // Stable per-device id so two devices (even signed in as the same name) each get
 // their own progress file and correctly merge each other's updates.
@@ -1360,7 +1366,7 @@ export default function App() {
   useEffect(() => {
     if (tasks.length === 0) return;
     saveSession({ tasks, fieldMap, columns, rawData, settings, descMap, notifications, loadedWorklist, configVersion });
-    setLastSaved(new Date().toLocaleTimeString());
+    setLastSaved(fmtNZTime());
   }, [tasks, settings, fieldMap, columns, rawData, descMap, notifications, loadedWorklist, configVersion]);
 
   // Restore session
@@ -1451,7 +1457,7 @@ export default function App() {
     try {
       await saveConfig(cfg);
       setConfigVersion(cfg.__version);
-      showToast("✓ Configuration published — version " + new Date(cfg.__version).toLocaleString());
+      showToast("✓ Configuration published — version " + fmtNZ(cfg.__version));
     } catch (e) { showToast("❌ Publish failed: " + (e.message || e)); }
   };
 
@@ -1866,7 +1872,7 @@ export default function App() {
         newest
       });
       setSyncError(null);
-      setLastSync(new Date().toLocaleTimeString());
+      setLastSync(fmtNZTime());
     } catch (e) {
       setSyncError(`${stage} failed: ${e?.message || e}`);
     }
@@ -2063,7 +2069,7 @@ export default function App() {
         Title: n.title, Description: n.description,
         FunctionalLocation: n.functLocation, LocationDesc: n.functLocationDesc,
         LinkedTaskId: n.taskId, RaisedBy: n.createdBy,
-        RaisedAt: n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
+        RaisedAt: n.createdAt ? fmtNZ(n.createdAt) : "",
         PhotoCount: n.photos.length,
         PhotoFiles: photoNamesByNotif[ni].join("; ")
       }));
@@ -2095,7 +2101,7 @@ export default function App() {
       Title: n.title, Description: n.description,
       FunctionalLocation: n.functLocation, LocationDesc: n.functLocationDesc,
       LinkedTaskId: n.taskId, RaisedBy: n.createdBy,
-      RaisedAt: n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
+      RaisedAt: n.createdAt ? fmtNZ(n.createdAt) : "",
       PhotoCount: n.photos.length, PhotoFiles: photoNamesByNotif[ni].join("; ")
     }));
     const ws = XLSX.utils.json_to_sheet(nRows);
@@ -2128,7 +2134,7 @@ export default function App() {
       "Linked Task ID": n.taskId,
       "Linked Task Desc": n.taskDesc,
       "Raised By": n.createdBy,
-      "Raised At": n.createdAt ? new Date(n.createdAt).toLocaleString() : "",
+      "Raised At": n.createdAt ? fmtNZ(n.createdAt) : "",
       "Photos": n.photos.length > 0 ? `${n.photos.length} photo(s)` : "",
     }));
     if (!rows.length) { showToast("No items to export"); return; }
@@ -2507,7 +2513,7 @@ export default function App() {
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontFamily:"'Roboto Condensed',sans-serif",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--text-faint)",fontSize:11,minWidth:96}}>Config&nbsp;version</span>
-                  <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{configVersion ? new Date(configVersion).toLocaleString() : "— none received yet —"}</span>
+                  <span style={{color:"var(--accent)",fontFamily:"monospace"}}>{configVersion ? fmtNZ(configVersion) : "— none received yet —"}</span>
                 </div>
               </div>
 
@@ -2914,7 +2920,7 @@ export default function App() {
                   <span className="worklist-alert-ico">🆕</span>
                   <div className="worklist-alert-text">
                     A newer worklist is available — <strong>{latestWorklist.name}</strong>
-                    {latestWorklist.updatedAt && <span style={{opacity:0.8}}> ({new Date(latestWorklist.updatedAt).toLocaleString()})</span>}
+                    {latestWorklist.updatedAt && <span style={{opacity:0.8}}> ({fmtNZ(latestWorklist.updatedAt)})</span>}
                   </div>
                   <button className="worklist-alert-load" onClick={()=>loadWorklistByName(latestWorklist.name, latestWorklist)}>Load</button>
                   <button className="worklist-alert-x" onClick={()=>setWorklistAlertDismissed(true)}>✕</button>
@@ -3479,7 +3485,7 @@ export default function App() {
                       <div className="notif-log-body">
                         <div className="notif-log-title">{n.title}</div>
                         <div className="notif-log-meta">
-                          📍 {n.functLocationDesc||n.functLocation||"—"} · {n.createdBy} · {n.createdAt?new Date(n.createdAt).toLocaleString():""}
+                          📍 {n.functLocationDesc||n.functLocation||"—"} · {n.createdBy} · {n.createdAt?fmtNZ(n.createdAt):""}
                           {n.taskDesc && <span> · Task: {n.taskDesc.slice(0,40)}</span>}
                         </div>
                         {n.photos.length>0 && (
@@ -3510,7 +3516,7 @@ export default function App() {
                 <div className="notif-hdr">
                   <div>
                     <div className="notif-hdr-title">{isIssue?"⚠ Task Issue":"🔔 Notification"}</div>
-                    <div className="notif-hdr-sub">{n.createdBy} · {n.createdAt?new Date(n.createdAt).toLocaleString():""}</div>
+                    <div className="notif-hdr-sub">{n.createdBy} · {n.createdAt?fmtNZ(n.createdAt):""}</div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <button className="panel-x" style={{background:"#2a0a0a",borderColor:"#dc262644",color:"#dc2626"}}
