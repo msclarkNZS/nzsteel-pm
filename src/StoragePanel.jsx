@@ -27,7 +27,7 @@ function ageDays(iso) {
   if (!iso) return null;
   return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
 }
-function fmtDate(iso) { return iso ? new Date(iso).toLocaleString() : "—"; }
+function fmtDate(iso) { try { return iso ? new Date(iso).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland" }) : "—"; } catch { return "—"; } }
 
 export default function StoragePanel({ onToast }) {
   const note = (m) => onToast && onToast(m);
