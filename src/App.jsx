@@ -1104,7 +1104,7 @@ const css = `
 
   /* ── Checklist mode — fixed LIGHT palette (white paper, dark text),
         theme-independent so forms are always readable in any app theme ── */
-  .cf-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #ffffff; --cfbg:#ffffff; --cfsurface:#f4f7fb; --cfinput:#ffffff; --cfborder:#d3dbe8; --cfborderlt:#b7c2d4; --cftext:#14202f; --cfdim:#4c5a70; --cffaint:#78859a; --cfaccent:#0b57b0; --cfbar:#eef2f8; }
+  .cf-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #ffffff; --cfbg:#ffffff; --cfsurface:#f4f7fb; --cfinput:#ffffff; --cfborder:#d3dbe8; --cfborderlt:#b7c2d4; --cftext:#14202f; --cfdim:#4c5a70; --cffaint:#78859a; --cfaccent: var(--brand); --cfbar:#eef2f8; }
   .cf-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
   .cf-listhdr, .cf-formtitle { font-family: 'Roboto Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--cftext); }
   .cf-formhdr { padding: 14px 16px; background: var(--cfsurface); border-bottom: 1px solid var(--cfborder); flex-shrink: 0; }
@@ -1151,9 +1151,9 @@ const css = `
   .cf-addcomment { align-self: flex-start; background: none; border: 1px dashed var(--cfborderlt); color: var(--cfdim); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
   .cf-photo-btn { align-self: flex-start; background: var(--cfinput); border: 1px solid var(--cfborder); color: var(--cftext); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
   .cf-thumb { max-width: 160px; border-radius: 8px; border: 1px solid var(--cfborder); }
-  .cf-info { background: #eaf2fe; border: 1px solid #b7d5f5; border-left: 4px solid var(--cfaccent); border-radius: 10px; padding: 14px; }
+  .cf-info { background: #f1f4f9; border: 1px solid #d3dbe8; border-left: 4px solid var(--cfaccent); border-radius: 10px; padding: 14px; }
   .cf-info-title { font-weight: 700; color: var(--cfaccent); }
-  .cf-info-body { font-size: 14px; color: #274156; margin-top: 4px; line-height: 1.5; }
+  .cf-info-body { font-size: 14px; color: var(--cftext); margin-top: 4px; line-height: 1.5; }
   .cf-soon { font-size: 13px; color: #8a5a00; background: #fff6e5; border: 1px dashed #e0a94a; border-radius: 8px; padding: 10px 14px; }
   .cf-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--cfborder); background: var(--cfbar); flex-shrink: 0; }
   .cf-navbtn { flex: 1 1 40%; min-width: 92px; min-height: 52px; }
