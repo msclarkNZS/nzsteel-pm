@@ -356,13 +356,8 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
     return (
       <div className="cf-screen">
         <div className="cf-formhdr">
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
-            <div style={{minWidth:0}}>
-              <div className="cf-formtitle">{form.title}</div>
-              <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
-            </div>
-            <button className="cf-savebtn" onClick={saveCurrentDraft}>💾 Save draft</button>
-          </div>
+          <div className="cf-formtitle">{form.title}</div>
+          <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
           {sections.length > 1 && <div className="cf-secname">{sec.title}</div>}
         </div>
         {sections.length > 1 && (
@@ -379,7 +374,8 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
         </div>
         <div className="cf-nav">
           {secIdx > 0 && <button className="btn-ghost cf-navbtn" onClick={() => { setSecIdx(i => i - 1); window.scrollTo(0, 0); }}>← Prev</button>}
-          <button className="btn-ghost cf-navbtn" onClick={() => { if (window.confirm("Discard this checklist and go back?")) { setForm(null); setStage("list"); } }}>Cancel</button>
+          <button className="btn-ghost cf-navbtn cf-navsave" onClick={saveCurrentDraft}>💾 Save</button>
+          <button className="btn-ghost cf-navbtn" onClick={() => { if (window.confirm("Discard this checklist and go back? (Use Save to keep it as a draft.)")) { setForm(null); setStage("list"); } }}>Cancel</button>
           {!last
             ? <button className="btn-primary cf-navbtn" onClick={() => { setSecIdx(i => i + 1); window.scrollTo(0, 0); }}>Next →</button>
             : <button className="btn-primary cf-navbtn" disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "✓ Submit"}</button>}
@@ -405,7 +401,7 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
               {drafts.map(d => (
                 <div key={d.id} className="cf-card" style={{ borderLeftColor: "#fbbf24", cursor: "default" }}>
                   <div className="cf-card-title">{d.formTitle}</div>
-                  <div className="cf-card-sub">Saved {new Date(d.savedAt).toLocaleString()} · {d.answerCount || 0} answer(s)</div>
+                  <div className="cf-card-sub">Saved {new Date(d.savedAt).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland" })} · {d.answerCount || 0} answer(s)</div>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button className="cf-pf" style={{ minHeight: 40, fontSize: 13 }} onClick={() => resumeDraft(d)}>▶ Resume</button>
                     <button className="cf-pf" style={{ minHeight: 40, fontSize: 13, flex: "0 0 auto", padding: "0 14px" }} onClick={() => removeDraft(d.id)}>🗑</button>
