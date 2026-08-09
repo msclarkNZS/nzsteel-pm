@@ -356,8 +356,16 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
     return (
       <div className="cf-screen">
         <div className="cf-formhdr">
-          <div className="cf-formtitle">{form.title}</div>
-          <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
+          <div className="cf-formhdr-row">
+            <div className="cf-formhdr-titles">
+              <div className="cf-formtitle">{form.title}</div>
+              <div className="cf-formmeta">{form.docRef ? form.docRef + " · " : ""}{sections.length > 1 ? `Section ${secIdx + 1} of ${sections.length}` : ""}</div>
+            </div>
+            <div className="cf-formhdr-actions">
+              <button className="cf-hdrbtn cf-hdrsave" onClick={saveCurrentDraft}>💾 Save</button>
+              <button className="cf-hdrbtn" onClick={() => { if (window.confirm("Discard this checklist and go back? (Use Save to keep it as a draft.)")) { setForm(null); setStage("list"); } }}>✕ Cancel</button>
+            </div>
+          </div>
           {sections.length > 1 && <div className="cf-secname">{sec.title}</div>}
         </div>
         {sections.length > 1 && (
@@ -374,8 +382,6 @@ export default function ChecklistMode({ techName, onToast, onMarkup }) {
         </div>
         <div className="cf-nav">
           {secIdx > 0 && <button className="btn-ghost cf-navbtn" onClick={() => { setSecIdx(i => i - 1); window.scrollTo(0, 0); }}>← Prev</button>}
-          <button className="btn-ghost cf-navbtn cf-navsave" onClick={saveCurrentDraft}>💾 Save</button>
-          <button className="btn-ghost cf-navbtn" onClick={() => { if (window.confirm("Discard this checklist and go back? (Use Save to keep it as a draft.)")) { setForm(null); setStage("list"); } }}>Cancel</button>
           {!last
             ? <button className="btn-primary cf-navbtn" onClick={() => { setSecIdx(i => i + 1); window.scrollTo(0, 0); }}>Next →</button>
             : <button className="btn-primary cf-navbtn" disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "✓ Submit"}</button>}
